@@ -1,0 +1,87 @@
+services:
+  dovecot:
+    image: dovecot/dovecot:latest
+    container_name: dovecot
+    hostname: dovecot
+    restart: unless-stopped
+    ports:
+      - ${BIND_IP}993:993
+    volumes:
+      - ./dovecot.conf:/etc/dovecot/dovecot.conf
+      - ${SSL_CERT}:/srv/cert.pem:ro
+      - ${SSL_KEY}:/srv/key.pem:ro
+      - mail-storage:/srv/mail
+    environment:
+      - TZ
+      - PASSWD_FILE=/run/secrets/dovecot_passwd
+      - DOMAIN=coreybraun.com
+    secrets:
+      - dovecot_passwd
+
+  ses-to-lmtp:
+    image: coreybraun/ses-to-lmtp
+    build: ses-to-lmtp
+    container_name: ses-to-lmtp
+    hostname: ses-to-lmtp
+    restart: unless-stopped
+    depends_on:
+      - dovecot
+    ports:
+      - ${BIND_IP}${SNS_ENDPOINT_PORT}:443
+    volumes:
+      - ${SSL_CERT}:/srv/cert.pem:ro
+      - ${SSL_KEY}:/srv/key.pem:ro
+      - mail-storage:/mnt
+    environment:
+      - TZ
+      - AWS_CREDENTIALS_FILE=/run/secrets/aws_access_key
+      - SNS_CREDENTIALS_FILE=/run/secrets/sns_passwd
+      - LMTP_SERVER=dovecot:24
+      - MAIL_BUCKET_NAME
+      - DEBUG_MODE=true
+    secrets:
+      - aws_access_key
+      - sns_passwd
+
+  postfix-ses-relay:
+    image: coreybraun/postfix-ses-relay
+    build: postfix-ses-relay
+    container_name: postfix-ses-relay
+    hostname: postfix-ses-relay
+    restart: unless-stopped
+    depends_on:
+      - dovecot
+    ports:
+      - ${BIND_IP}587:587
+    volumes:
+      - ${SSL_CERT}:/srv/cert.pem:ro
+      - ${SSL_KEY}:/srv/key.pem:ro
+      - ./custom_login_map:/etc/postfix/custom_login_map
+    environment:
+      - TZ
+      - AWS_CREDENTIALS_FILE=/run/secrets/aws_access_key
+      - AWS_REGION
+      - SASL_SERVER=dovecot:12345
+      - ALLOWED_SENDER_DOMAINS ## Space and/or comma separated list of domains local accounts can send from
+      - WILDCARD_SENDER
+      #- SENDER_LOGIN_MAP=pcre:/run/secrets/postfix_login_map
+      #- SENDER_LOGIN_MAP=pcre:/etc/postfix/custom_login_map
+    secrets:
+      - aws_access_key
+      #- postfix_login_map
+
+volumes:
+  mail-storage:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: "addr=${NFS_SERVER},nfsvers=4"
+      device: ":${NFS_PATH}"
+
+secrets:
+  dovecot_passwd:
+    file: "${SECRETS_PATH}/dovecot_passwd" ## Contents of each line: "<username>:<password>"
+  sns_passwd:
+    file: "${SECRETS_PATH}/sns_passwd" ## Contents: "<username>:<password>"
+  aws_access_key:
+    file: "${SECRETS_PATH}/aws_access_key" ## Contents: "<Access Key>:<Secret Access Key>"
