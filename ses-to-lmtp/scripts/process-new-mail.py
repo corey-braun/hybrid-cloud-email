@@ -5,10 +5,10 @@ import smtplib
 import email
 import boto3
 
-s3_bucket = os.environ['MAIL_BUCKET_NAME']
-lmtp_server, lmtp_port = os.environ['LMTP_SERVER'].split(':')
+s3_bucket = os.environ['MAIL_BUCKET']
+lmtp_server, lmtp_port = os.environ['LMTP_SERVER'].rsplit(':', 1)
 lmtp_port = int(lmtp_port)
-processed_prefix = os.getenv('PROCESSED_PREFIX', 'processed/')
+processed_prefix = 'processed/'
 if os.getenv('DELETE_PROCESSED_EMAILS', 'false').lower() == 'true':
     delete_processed_emails = True
 else:
@@ -40,10 +40,12 @@ def process_emails(objects_list):
             try:
                 reciever = i.split('/', 1)[0]
                 msg = email.message_from_bytes(s3.Object(s3_bucket, i).get()['Body'].read())
-                if not 'Return-Path' in msg:
-                    raise KeyError()
-                return_path = msg['Return-Path']
-                del msg['Return-Path']
+                if 'Return-Path' in msg:
+                    return_path = msg['Return-Path']
+                    del msg['Return-Path']
+                else:
+                    print(f"Warning: No Return Path in message '{i}', using 'None'")
+                    return_path = 'None'
                 server.sendmail(return_path, reciever, msg.as_bytes())
             except Exception:
                 print(f"Error handling object '{i}' in bucket '{s3_bucket}'\n{traceback.format_exc()}")

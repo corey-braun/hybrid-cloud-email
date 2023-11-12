@@ -6,7 +6,6 @@ RUN apk add --no-cache bash python3 py3-boto3 tini
 ## Set default environment variables
 ENV AWS_SHARED_CREDENTIALS_FILE /srv/aws_credentials
 ENV PROCESS_MAIL_AT_STARTUP true
-ENV PROCESSED_PREFIX processed/
 ENV DELETE_PROCESSED_EMAILS false
 ENV DEBUG_MODE false
 

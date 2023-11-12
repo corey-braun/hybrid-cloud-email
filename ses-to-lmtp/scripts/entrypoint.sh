@@ -1,6 +1,6 @@
 #!/bin/bash
 
-FILE_ENV_VARS=(AWS_CREDENTIALS MAIL_BUCKET_NAME)
+FILE_ENV_VARS=(AWS_CREDENTIALS MAIL_BUCKET)
 REQUIRED_ENV_VARS=(AWS_SHARED_CREDENTIALS_FILE SNS_CREDENTIALS_FILE)
 
 log_exit() {
@@ -49,5 +49,5 @@ if [ "${PROCESS_MAIL_AT_STARTUP,,}" = 'true' ]; then
     /srv/scripts/process-new-mail.py
 fi
 
-## Start apache in foreground
+## Start apache foreground process
 exec httpd-foreground

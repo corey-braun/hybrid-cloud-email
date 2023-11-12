@@ -65,9 +65,10 @@ fi
 
 ## Create AWS SMTP credentials from access key
 IFS=':' read ACCESS_KEY SECRET_ACCESS_KEY <<< "$AWS_CREDENTIALS"
+[ -z "$ACCESS_KEY" -o -z "$SECRET_ACCESS_KEY" ] && log_exit 'Failed to find access key and secret access key while parsing AWS_CREDENTIALS[_FILE]'
 echo -n "$RELAYHOST $ACCESS_KEY:" > /etc/postfix/aws_smtp_credentials
 /srv/scripts/smtp_credentials_generate.py "$SECRET_ACCESS_KEY" "$AWS_REGION" >> /etc/postfix/aws_smtp_credentials
-[ $? -ne 0 ] && log_exit "Failed to convert AWS secret access key and region to SMTP password"
+[ $? -ne 0 ] && log_exit 'Failed to convert AWS secret access key and region to SMTP password'
 
 ## Execute runtime postconf commands
 . /srv/scripts/postconf-run.sh

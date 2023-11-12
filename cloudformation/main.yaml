@@ -1,0 +1,157 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::LanguageExtensions
+Description: |
+  Amazon SES Hybrid-Cloud Email Server General Setup
+  https://github.com/corey-braun/hybrid-cloud-email
+
+Parameters:
+  MailDomains:
+    Description: |
+      List of domains to add as verified identities in Amazon SES.
+      After deploying this template, DNS records will need to be created for each domain to prove ownership.
+      The records to create will be listed in the template's "Outputs" section.
+    Type: CommaDelimitedList
+  MailFromSubDomain:
+    Description: |
+      The subdomain to use for your custom MAIL FROM domain. If unset, a custom MAIL FROM domain will not be used.
+      After deploying this template, DNS records will need to be created to verify SES is allowed to send email for your domains.
+      The records to create will be listed in the template's "Outputs" section.
+      For more information, see https://docs.aws.amazon.com/ses/latest/dg/mail-from.html
+    Type: String
+  ProcessedPrefixExpirationDays:
+    Description: The number of days before objects with the "processed/" prefix expire.
+    Default: 15
+    Type: Number
+    MinValue: 1
+    MaxValue: 365
+  SnsHttpsEndpoint:
+    Description: |
+      The URI of your SNS HTTPS endpoint, in format "https://<user>:<password>@<host>:<port>"
+      This endpoint must serve an SSL certificate signed by a trusted CA.
+    Type: String
+    NoEcho: true
+
+Conditions:
+  UseCustomMailFrom: !Not [!Equals [!Ref MailFromSubDomain, ""]]
+
+Resources:
+  S3MailBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      LifecycleConfiguration:
+        Rules:
+          - Prefix: 'processed/'
+            Status: Enabled
+            ExpirationInDays: !Ref ProcessedPrefixExpirationDays
+  S3MailBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3MailBucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action:
+              - 's3:PutObject'
+            Effect: Allow
+            Resource: !Sub "arn:aws:s3:::${S3MailBucket}/*"
+            Principal:
+              Service: "ses.amazonaws.com"
+            Condition:
+              StringLike:
+                AWS:SourceArn: !Sub "arn:aws:ses:${AWS::Region}:${AWS::AccountId}:receipt-rule-set/${SesReceiptRuleSet}:receipt-rule/*"
+                AWS:SourceAccount: !Ref "AWS::AccountId"
+  SnsNewMailTopic:
+    Type: AWS::SNS::Topic
+  SnsHttpsEndpointSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: !Ref SnsHttpsEndpoint
+      Protocol: https
+      TopicArn: !Ref SnsNewMailTopic
+  Fn::ForEach::EmailIdentities:
+    - Domain
+    - !Split [",", !Join ["Dot", !Split [".", !Join [",", !Ref MailDomains]]]]
+    - '${Domain}':
+        Type: AWS::SES::EmailIdentity
+        Properties:
+          EmailIdentity: !Join [".", !Split ["Dot", !Ref Domain]]
+          MailFromAttributes:
+            BehaviorOnMxFailure: !If [UseCustomMailFrom, "REJECT_MESSAGE", !Ref "AWS::NoValue"]
+            MailFromDomain: !If [UseCustomMailFrom, !Join [".", [!Ref MailFromSubDomain, !Join [".", !Split ["Dot", !Ref Domain]]]], !Ref "AWS::NoValue"]
+  SesReceiptRuleSet:
+    Type: AWS::SES::ReceiptRuleSet
+  IamMailUser:
+    Type: AWS::IAM::User
+    Properties:
+      Policies:
+        - PolicyName: process-mail
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !Sub "arn:aws:s3:::${S3MailBucket}"
+              - Effect: Allow
+                Action:
+                  - s3:GetObjectAcl
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub "arn:aws:s3:::${S3MailBucket}/*"
+        - PolicyName: send-mail
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource: "*"
+
+Outputs:
+  Fn::ForEach::MailReceivingMxRecords:
+    - Domain
+    - !Split [",", !Join ["Dot", !Split [".", !Join [",", !Ref MailDomains]]]]
+    - '${Domain}MailReceivingMxDnsRecord':
+        Value: !Join
+          - " MX "
+          - - !Join [".", !Split ["Dot", !Ref Domain]]
+            - !Join ["", ["10 inbound-smtp.", !Ref "AWS::Region", ".amazonaws.com"]]
+  Fn::ForEach::DkimDnsRecords:
+    - Domain
+    - !Split [",", !Join ["Dot", !Split [".", !Join [",", !Ref MailDomains]]]]
+    - Fn::ForEach::DkimGetAttNumLoop:
+        - Number
+        - ["1", "2", "3"]
+        - '${Domain}DkimCnameDnsRecord${Number}':
+            Value: !Join [" CNAME ", [!GetAtt [!Ref Domain, !Sub "DkimDNSTokenName${Number}"], !GetAtt [!Ref Domain, !Sub "DkimDNSTokenValue${Number}"]]]
+  Fn::ForEach::CustomMailFromMxRecords:
+    - Domain
+    - !Split [",", !Join ["Dot", !Split [".", !Join [",", !Ref MailDomains]]]]
+    - '${Domain}CustomMailFromMxDnsRecord':
+        Value: !Join
+          - " MX "
+          - - !Join [".", [!Ref MailFromSubDomain, !Join [".", !Split ["Dot", !Ref Domain]]]]
+            - !Join ["", ["10 feedback-smtp.", !Ref "AWS::Region", ".amazonses.com"]]
+        Condition: UseCustomMailFrom
+  Fn::ForEach::CustomMailFromSpfRecords:
+    - Domain
+    - !Split [",", !Join ["Dot", !Split [".", !Join [",", !Ref MailDomains]]]]
+    - '${Domain}CustomMailFromSpfDnsRecord':
+        Value: !Join
+          - " TXT "
+          - - !Join [".", [!Ref MailFromSubDomain, !Join [".", !Split ["Dot", !Ref Domain]]]]
+            - '"v=spf1 include:amazonses.com ~all"'
+        Condition: UseCustomMailFrom
+  SesMailReceivingRuleSet:
+    Value: !Ref SesReceiptRuleSet
+    Export:
+      Name: SesMailReceivingRuleSet
+  S3MailStorageBucket:
+    Value: !Ref S3MailBucket
+    Export:
+      Name: S3MailStorageBucket
+  SnsNewMailTopicArn:
+    Value: !Ref SnsNewMailTopic
+    Export:
+      Name: SnsNewMailTopicArn

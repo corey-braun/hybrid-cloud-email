@@ -5,7 +5,8 @@ services:
     hostname: dovecot
     restart: unless-stopped
     ports:
-      - ${BIND_IP}993:993
+      - ${BIND_IP}993:993 ## IMAPS port for SSL/TLS connections
+      - ${BIND_IP}143:143 ## Standard IMAP port for STARTTLS connections
     volumes:
       - ./dovecot.conf:/etc/dovecot/dovecot.conf
       - ${SSL_CERT}:/srv/cert.pem:ro
@@ -13,8 +14,6 @@ services:
       - mail-storage:/srv/mail
     environment:
       - TZ
-      - PASSWD_FILE=/run/secrets/dovecot_passwd
-      - DOMAIN=coreybraun.com
     secrets:
       - dovecot_passwd
 
@@ -27,18 +26,18 @@ services:
     depends_on:
       - dovecot
     ports:
-      - ${BIND_IP}${SNS_ENDPOINT_PORT}:443
+      - ${BIND_IP}${SNS_ENDPOINT_PORT}:443 ## Bind chosen SNS HTTPS endpoint port to container's HTTPS port
     volumes:
       - ${SSL_CERT}:/srv/cert.pem:ro
       - ${SSL_KEY}:/srv/key.pem:ro
-      - mail-storage:/mnt
     environment:
       - TZ
+      - LMTP_SERVER=dovecot:24
       - AWS_CREDENTIALS_FILE=/run/secrets/aws_access_key
       - SNS_CREDENTIALS_FILE=/run/secrets/sns_passwd
-      - LMTP_SERVER=dovecot:24
-      - MAIL_BUCKET_NAME
-      - DEBUG_MODE=true
+      - MAIL_BUCKET
+      #- DEBUG_MODE=true ## Output for each message processed, and when script is called with nothing to do.
+      #- DELETE_PROCESSED_EMAILS=true ## Delete processed emails instead of moving them to 'processed/' prefix.
     secrets:
       - aws_access_key
       - sns_passwd
@@ -52,36 +51,34 @@ services:
     depends_on:
       - dovecot
     ports:
-      - ${BIND_IP}587:587
+      - ${BIND_IP}587:587 ## Mail submission port for STARTTLS connections
     volumes:
       - ${SSL_CERT}:/srv/cert.pem:ro
       - ${SSL_KEY}:/srv/key.pem:ro
-      - ./custom_login_map:/etc/postfix/custom_login_map
+      #- ./custom_login_map:/etc/postfix/custom_login_map ## Mount custom login map
     environment:
       - TZ
+      - SASL_SERVER=dovecot:12345
       - AWS_CREDENTIALS_FILE=/run/secrets/aws_access_key
       - AWS_REGION
-      - SASL_SERVER=dovecot:12345
-      - ALLOWED_SENDER_DOMAINS ## Space and/or comma separated list of domains local accounts can send from
+      - ALLOWED_SENDER_DOMAINS
       - WILDCARD_SENDER
-      #- SENDER_LOGIN_MAP=pcre:/run/secrets/postfix_login_map
-      #- SENDER_LOGIN_MAP=pcre:/etc/postfix/custom_login_map
+      #- SENDER_LOGIN_MAP=pcre:/etc/postfix/custom_login_map ## Use custom login map
     secrets:
       - aws_access_key
-      #- postfix_login_map
 
 volumes:
   mail-storage:
     driver: local
     driver_opts:
       type: "nfs"
-      o: "addr=${NFS_SERVER},nfsvers=4"
+      o: "addr=${NFS_SERVER},nfsvers=${NFS_VERSION}"
       device: ":${NFS_PATH}"
 
 secrets:
   dovecot_passwd:
-    file: "${SECRETS_PATH}/dovecot_passwd" ## Contents of each line: "<username>:<password>"
+    file: "${SECRETS_PATH}/dovecot_passwd" ## Contents of each line: '<username>:<password>::'
   sns_passwd:
-    file: "${SECRETS_PATH}/sns_passwd" ## Contents: "<username>:<password>"
+    file: "${SECRETS_PATH}/sns_passwd" ## Contents: '<username>:<password>'
   aws_access_key:
-    file: "${SECRETS_PATH}/aws_access_key" ## Contents: "<Access Key>:<Secret Access Key>"
+    file: "${SECRETS_PATH}/aws_access_key" ## Contents: '<access_key>:<secret_access_key>'

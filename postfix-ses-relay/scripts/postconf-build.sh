@@ -14,7 +14,7 @@ postconf -e 'smtp_sasl_auth_enable=yes' \
     'smtp_tls_security_level=encrypt' \
     'smtp_sasl_tls_security_options=noanonymous'
 
-## Enable submission service; Auth from dovecot SASL
+## Enable submission service; Auth from dovecot SASL; Require clients use encrypted connection
 postconf -M 'submission/inet=submission inet n - n - - smtpd'
 postconf -P 'submission/inet/syslog_name=postfix/submission' \
     'submission/inet/smtpd_tls_security_level=encrypt' \
