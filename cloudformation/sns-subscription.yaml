@@ -1,0 +1,21 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: |
+  Hybrid-Cloud Email Server SNS endpoint subscription.
+  Depends on exported values from main stack.
+  https://github.com/corey-braun/hybrid-cloud-email
+
+Parameters:
+  SnsHttpsEndpoint:
+    Description: |
+      The URI of your SNS HTTPS endpoint, in format "https://<user>:<password>@<host>:<port>"
+      This endpoint must serve an SSL certificate signed by a trusted CA.
+    Type: String
+    NoEcho: true
+
+Resources:
+  SnsHttpsEndpointSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: !Ref SnsHttpsEndpoint
+      Protocol: https
+      TopicArn: !ImportValue SnsNewMailTopicArn

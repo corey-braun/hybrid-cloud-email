@@ -9,10 +9,10 @@ s3_bucket = os.environ['MAIL_BUCKET']
 lmtp_server, lmtp_port = os.environ['LMTP_SERVER'].rsplit(':', 1)
 lmtp_port = int(lmtp_port)
 processed_prefix = 'processed/'
-if os.getenv('DELETE_PROCESSED_EMAILS', 'false').lower() == 'true':
-    delete_processed_emails = True
+if os.getenv('DELETE_PROCESSED_MAIL', 'false').lower() == 'true':
+    delete_processed_mail = True
 else:
-    delete_processed_emails = False
+    delete_processed_mail = False
 if os.getenv('DEBUG_MODE', 'false').lower() == 'true':
     debug_mode = True
 else:
@@ -51,7 +51,7 @@ def process_emails(objects_list):
                 print(f"Error handling object '{i}' in bucket '{s3_bucket}'\n{traceback.format_exc()}")
             else:
                 try:
-                    if not delete_processed_emails:
+                    if not delete_processed_mail:
                         new_object = processed_prefix + i
                         s3.Object(s3_bucket, new_object).copy_from(CopySource={'Bucket': s3_bucket, 'Key': i})
                 except Exception:

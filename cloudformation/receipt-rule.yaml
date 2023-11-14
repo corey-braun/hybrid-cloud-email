@@ -1,6 +1,8 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: |
-  Amazon SES Hybrid-Cloud Email Server Receipt Rule
+  Hybrid-Cloud Email Server Receipt Rule.
+  Creates a receipt rule to handle mail for a user.
+  Depends on exported values from main stack.
   https://github.com/corey-braun/hybrid-cloud-email
 
 Parameters:

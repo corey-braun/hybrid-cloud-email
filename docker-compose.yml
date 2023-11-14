@@ -32,12 +32,12 @@ services:
       - ${SSL_KEY}:/srv/key.pem:ro
     environment:
       - TZ
-      - LMTP_SERVER=dovecot:24
+      - LMTP_SERVER=dovecot:24 ## <container_name>:<lmtp_port>
       - AWS_CREDENTIALS_FILE=/run/secrets/aws_access_key
       - SNS_CREDENTIALS_FILE=/run/secrets/sns_passwd
       - MAIL_BUCKET
-      #- DEBUG_MODE=true ## Output for each message processed, and when script is called with nothing to do.
       #- DELETE_PROCESSED_EMAILS=true ## Delete processed emails instead of moving them to 'processed/' prefix.
+      #- DEBUG_MODE=true ## Output for each message processed, and when script is called but finds no new messages
     secrets:
       - aws_access_key
       - sns_passwd
@@ -58,12 +58,12 @@ services:
       #- ./custom_login_map:/etc/postfix/custom_login_map ## Mount custom login map
     environment:
       - TZ
-      - SASL_SERVER=dovecot:12345
+      - SASL_SERVER=dovecot:12345 ## <container_name>:<sasl_port>
       - AWS_CREDENTIALS_FILE=/run/secrets/aws_access_key
       - AWS_REGION
-      - ALLOWED_SENDER_DOMAINS
+      - SENDER_DOMAINS
       - WILDCARD_SENDER
-      #- SENDER_LOGIN_MAP=pcre:/etc/postfix/custom_login_map ## Use custom login map
+      #- SENDER_LOGIN_MAP=pcre:/etc/postfix/custom_login_map ## Use custom login map; If set, SENDER_DOMAINS and WILDCARD_SENDER variables are ignored
     secrets:
       - aws_access_key
 

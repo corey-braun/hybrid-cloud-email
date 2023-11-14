@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 ## Postconf commands applied on image build
 
 set -e

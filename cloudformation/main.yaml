@@ -1,7 +1,10 @@
 AWSTemplateFormatVersion: 2010-09-09
 Transform: AWS::LanguageExtensions
 Description: |
-  Amazon SES Hybrid-Cloud Email Server General Setup
+  Hybrid-Cloud Email Server General Setup.
+  Creates required SES, SNS, and S3 resources.
+  Outputs DNS records that must be created.
+  Exports resources names/arns for other templates.
   https://github.com/corey-braun/hybrid-cloud-email
 
 Parameters:
@@ -20,16 +23,10 @@ Parameters:
     Type: String
   ProcessedPrefixExpirationDays:
     Description: The number of days before objects with the "processed/" prefix expire.
-    Default: 15
+    Default: 14
     Type: Number
     MinValue: 1
     MaxValue: 365
-  SnsHttpsEndpoint:
-    Description: |
-      The URI of your SNS HTTPS endpoint, in format "https://<user>:<password>@<host>:<port>"
-      This endpoint must serve an SSL certificate signed by a trusted CA.
-    Type: String
-    NoEcho: true
 
 Conditions:
   UseCustomMailFrom: !Not [!Equals [!Ref MailFromSubDomain, ""]]
@@ -62,12 +59,6 @@ Resources:
                 AWS:SourceAccount: !Ref "AWS::AccountId"
   SnsNewMailTopic:
     Type: AWS::SNS::Topic
-  SnsHttpsEndpointSubscription:
-    Type: AWS::SNS::Subscription
-    Properties:
-      Endpoint: !Ref SnsHttpsEndpoint
-      Protocol: https
-      TopicArn: !Ref SnsNewMailTopic
   Fn::ForEach::EmailIdentities:
     - Domain
     - !Split [",", !Join ["Dot", !Split [".", !Join [",", !Ref MailDomains]]]]
