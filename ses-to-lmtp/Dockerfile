@@ -3,10 +3,6 @@ FROM httpd:2.4.58-alpine3.18
 ## Install required packages
 RUN apk add --no-cache bash python3 py3-boto3 tini
 
-## Set default environment variables
-ENV DELETE_PROCESSED_MAIL false
-ENV DEBUG_MODE false
-
 ## Add scripts
 COPY scripts /srv/scripts/
 COPY sns.cgi /srv/cgi/

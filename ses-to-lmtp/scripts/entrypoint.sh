@@ -1,21 +1,27 @@
 #!/bin/bash
 
-FILE_ENV_VARS=(AWS_CREDENTIALS MAIL_BUCKET SNS_CREDENTIALS)
-REQUIRED_ENV_VARS=()
+REQUIRED_ENV_VARS=(SNS_SHARED_CREDENTIALS_FILE AWS_SHARED_CREDENTIALS_FILE SNS_CREDENTIALS AWS_CREDENTIALS MAIL_BUCKET DELETE_PROCESSED_MAIL DEBUG_MODE)
+declare -A ENV_VAR_DEFAULTS
+ENV_VAR_DEFAULTS[SNS_SHARED_CREDENTIALS_FILE]=/srv/sns_credentials
+ENV_VAR_DEFAULTS[AWS_SHARED_CREDENTIALS_FILE]=/srv/aws_credentials
+ENV_VAR_DEFAULTS[DEBUG_MODE]='false'
+ENV_VAR_DEFAULTS[DELETE_PROCESSED_MAIL]='false'
 
 log_exit() {
     echo "Error: $1" >&2
     exit 1
 }
 
-set_file_vars() {
+set_env_vars() {
     for var in "$@"; do
         local file_var="${var}_FILE"
         if [ -n "${!var}" -a -n "${!file_var}" ]; then
             log_exit "Variables '$var' and '$file_var' are mutually exclusive"
+        elif [ -z "${!var}" -a -z "${!file_var}" -a -n "${ENV_VAR_DEFAULTS[$var]}" ]; then
+            export "$var"="${ENV_VAR_DEFAULTS[$var]}"
         elif [ -z "${!var}" ]; then
             if [ -n "${file_var}" -a -r "${!file_var}" ]; then
-                export "$var"="$(< ${!file_var})"
+                export "$var"="$(< "${!file_var}")"
             elif [ -z "${!file_var}" ]; then
                 log_exit "Required variable '$var[_FILE]' is unset"
             elif [ -f "${!file_var}" ]; then
@@ -27,37 +33,26 @@ set_file_vars() {
     done
 }
 
-check_vars_set() {
-    for var in "$@"; do
-        if [ -z "${!var}" ]; then
-            log_exit "Required variable '$var' is unset"
-        fi
-    done
-}
-
-chown_user() {
+chown_apache_user() {
     chown www-data:www-data "$1"
     chmod 600 "$1"
 }
 
 ## Set/check env vars
-set_file_vars "${FILE_ENV_VARS[@]}"
-check_vars_set "${REQUIRED_ENV_VARS[@]}"
-export SNS_SHARED_CREDENTIALS_FILE=/srv/sns_credentials \
-       AWS_SHARED_CREDENTIALS_FILE=/srv/aws_credentials
+set_env_vars "${REQUIRED_ENV_VARS[@]}"
 
-## Create SNS credentials file readable by unprivileged user
+## Create SNS_SHARED_CREDENTIALS_FILE for apache basic auth to SNS endpoint
 echo "$SNS_CREDENTIALS" > "$SNS_SHARED_CREDENTIALS_FILE"
-chown_user "$SNS_SHARED_CREDENTIALS_FILE"
+chown_apache_user "$SNS_SHARED_CREDENTIALS_FILE"
 
-## Set up AWS credentials for use with AWS CLI
+## Create AWS_SHARED_CREDENTIALS_FILE for Boto3 auth
 IFS=':' read key secret_key <<< "$AWS_CREDENTIALS"
 [ -z "$key" -o -z "$secret_key" ] && log_exit "Error parsing AWS credentials"
 echo -e "[default]\naws_access_key_id=$key\naws_secret_access_key=$secret_key" > "$AWS_SHARED_CREDENTIALS_FILE"
-chown_user "$AWS_SHARED_CREDENTIALS_FILE"
+chown_apache_user "$AWS_SHARED_CREDENTIALS_FILE"
 
-## Move mail at startup
-/srv/scripts/process-new-mail.py
+## Move mail at startup; Script should only exit non-zero due to a configuration error, so stop the container if it does
+/srv/scripts/process-new-mail.py || exit 1
 
 ## Start apache foreground process
 exec httpd-foreground

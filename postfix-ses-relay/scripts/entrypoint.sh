@@ -1,21 +1,24 @@
 #!/bin/bash
 
-FILE_ENV_VARS=(AWS_CREDENTIALS AWS_REGION SASL_SERVER)
-REQUIRED_ENV_VARS=(MAX_MESSAGE_SIZE)
+REQUIRED_ENV_VARS=(AWS_CREDENTIALS AWS_REGION SASL_SERVER MAX_MESSAGE_SIZE)
+declare -A ENV_VAR_DEFAULTS
+ENV_VAR_DEFAULTS[MAX_MESSAGE_SIZE]=10485760 ## 10MiB, SES default max
 
 log_exit() {
     echo "Error: $1" >&2
     exit 1
 }
 
-set_file_vars() {
+set_env_vars() {
     for var in "$@"; do
         local file_var="${var}_FILE"
         if [ -n "${!var}" -a -n "${!file_var}" ]; then
             log_exit "Variables '$var' and '$file_var' are mutually exclusive"
+        elif [ -z "${!var}" -a -z "${!file_var}" -a -n "${ENV_VAR_DEFAULTS[$var]}" ]; then
+            export "$var"="${ENV_VAR_DEFAULTS[$var]}"
         elif [ -z "${!var}" ]; then
             if [ -n "${file_var}" -a -r "${!file_var}" ]; then
-                export "$var"="$(< ${!file_var})"
+                export "$var"="$(< "${!file_var}")"
             elif [ -z "${!file_var}" ]; then
                 log_exit "Required variable '$var[_FILE]' is unset"
             elif [ -f "${!file_var}" ]; then
@@ -27,14 +30,6 @@ set_file_vars() {
     done
 }
 
-check_vars_set() {
-    for var in "$@"; do
-        if [ -z "${!var}" ]; then
-            log_exit "Required variable '$var' is unset"
-        fi
-    done
-}
-
 join_by_char() {
     local IFS="$1"
     shift
@@ -42,15 +37,16 @@ join_by_char() {
 }
 
 ## Set/check env vars
-set_file_vars "${FILE_ENV_VARS[@]}"
-check_vars_set "${REQUIRED_ENV_VARS[@]}"
+set_env_vars "${REQUIRED_ENV_VARS[@]}"
 RELAYHOST="email-smtp.$AWS_REGION.amazonaws.com:587"
 SMTP_CREDENTIALS_FILE=/etc/postfix/aws_smtp_credentials
 
-## Create default login map if one isn't specified; Use no login map if value of SENDER_LOGIN_MAP is 'none' (not recommended)
+## Create default login map if one isn't specified; Use no login map if value of SENDER_LOGIN_MAP is 'none' (not case sensitive)
 if [ "${SENDER_LOGIN_MAP,,}" != 'none' ]; then
-    if [ -z "$SENDER_LOGIN_MAP" ]; then
-        check_vars_set SENDER_DOMAINS
+    if [ -n "$SENDER_LOGIN_MAP" ]; then
+        postconf -P "submission/inet/smtpd_sender_login_maps=$SENDER_LOGIN_MAP"
+    else
+        set_env_vars SENDER_DOMAINS
         escaped_sender_domains="$(sed 's/\./\\\\\./g' <<< "$SENDER_DOMAINS")"
         IFS=', ' read -a allowed_domains <<< "$escaped_sender_domains"
         allowed_domains_string=$(join_by_char '|' "${allowed_domains[@]}")
@@ -60,15 +56,13 @@ if [ "${SENDER_LOGIN_MAP,,}" != 'none' ]; then
         fi
         echo >> /etc/postfix/sender_login_map
         postconf -P 'submission/inet/smtpd_sender_login_maps=pcre:/etc/postfix/sender_login_map'
-    else
-        postconf -P "submission/inet/smtpd_sender_login_maps=$SENDER_LOGIN_MAP"
     fi
     postconf -P 'submission/inet/smtpd_sender_restrictions=reject_sender_login_mismatch'
 fi
 
 ## Create AWS SMTP credentials from access key
 IFS=':' read ACCESS_KEY SECRET_ACCESS_KEY <<< "$AWS_CREDENTIALS"
-[ -z "$ACCESS_KEY" -o -z "$SECRET_ACCESS_KEY" ] && log_exit 'Failed to find access key and secret access key while parsing AWS_CREDENTIALS[_FILE]'
+[ -z "$ACCESS_KEY" -o -z "$SECRET_ACCESS_KEY" ] && log_exit 'Failed to find access key and secret access key while parsing AWS credentials'
 echo -n "$RELAYHOST $ACCESS_KEY:" > "$SMTP_CREDENTIALS_FILE"
 /srv/scripts/smtp_credentials_generate.py "$SECRET_ACCESS_KEY" "$AWS_REGION" >> "$SMTP_CREDENTIALS_FILE"
 [ $? -ne 0 ] && log_exit 'Failed to convert AWS secret access key and region to SMTP password'

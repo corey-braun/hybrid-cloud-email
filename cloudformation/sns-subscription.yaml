@@ -1,21 +1,46 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: |
-  Hybrid-Cloud Email Server SNS endpoint subscription.
+  Hybrid-Cloud Email Server SNS HTTPS endpoint subscription.
+  Creates a subscription for your HTTPS endpoint to your new mail SNS topic.
   Depends on exported values from main stack.
   https://github.com/corey-braun/hybrid-cloud-email
 
 Parameters:
-  SnsHttpsEndpoint:
+  EndpointHost:
     Description: |
-      The URI of your SNS HTTPS endpoint, in format "https://<user>:<password>@<host>:<port>"
-      This endpoint must serve an SSL certificate signed by a trusted CA.
+      The Fully Qualified Domain Name pointing to your HTTPS endpoint.
+      The value of this parameter must return an A/AAAA/CNAME record pointing to your HTTPS endpoint when looked up in DNS.
+      Your HTTPS endpoint must serve an SSL cert signed by a trusted CA for this FQDN.
     Type: String
+  EndpointPort:
+    Description: The port your HTTPS endpoint listens on.
+    Type: Number
+    Default: 443
+    MinValue: 20
+    MaxValue: 65535
+  BasicAuthUser:
+    Description: |
+      The username to use for basic authentication to your HTTPS endpoint.
+      Any special characters must be percent encoded.
+    Type: String
+    Default: "sns"
+    MinLength: 1
+  BasicAuthPass:
+    Description: |
+      The password to use for basic authentication to your HTTPS endpoint.
+      Any special characters must be percent encoded.
+    Type: String
+    MinLength: 1
     NoEcho: true
 
 Resources:
   SnsHttpsEndpointSubscription:
     Type: AWS::SNS::Subscription
     Properties:
-      Endpoint: !Ref SnsHttpsEndpoint
+      Endpoint: !Sub "https://${BasicAuthUser}:${BasicAuthPass}@${EndpointHost}:${EndpointPort}"
       Protocol: https
       TopicArn: !ImportValue SnsNewMailTopicArn
+
+Outputs:
+  CheckStatusLink:
+    Value: !Sub "https://console.aws.amazon.com/sns/v3/home#/subscription/${SnsHttpsEndpointSubscription}"

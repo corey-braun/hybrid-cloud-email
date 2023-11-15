@@ -13,18 +13,21 @@ Parameters:
       List of domains to add as verified identities in Amazon SES.
       After deploying this template, DNS records will need to be created for each domain to prove ownership.
       The records to create will be listed in the template's "Outputs" section.
+      For more information, see https://docs.aws.amazon.com/ses/latest/dg/verify-addresses-and-domains.html
     Type: CommaDelimitedList
   MailFromSubDomain:
     Description: |
-      The subdomain to use for your custom MAIL FROM domain. If unset, a custom MAIL FROM domain will not be used.
-      After deploying this template, DNS records will need to be created to verify SES is allowed to send email for your domains.
+      (optional) The subdomain to use for your custom MAIL FROM domain. If unset, a custom MAIL FROM domain will not be used.
+      If set, additional DNS records will need to be created to allow SES to send email for your domains.
       The records to create will be listed in the template's "Outputs" section.
       For more information, see https://docs.aws.amazon.com/ses/latest/dg/mail-from.html
     Type: String
   ProcessedPrefixExpirationDays:
-    Description: The number of days before objects with the "processed/" prefix expire.
-    Default: 14
+    Description: |
+      The number of days before processed email objects (those with the "processed/" prefix) expire.
+      Since bucket versioning is disabled, objects will be deleted upon expiration.
     Type: Number
+    Default: 14
     MinValue: 1
     MaxValue: 365
 

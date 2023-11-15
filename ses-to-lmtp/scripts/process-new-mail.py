@@ -5,27 +5,30 @@ import smtplib
 import email
 import boto3
 
+def env_to_bool(env_var):
+    value=os.environ[env_var].lower()
+    if value in ['true', 'yes']:
+        return True
+    elif value in ['false', 'no']:
+        return False
+    else:
+        raise ValueError(f"Invalid value for boolean environment variable '{env_var}': '{value}'")
+
+processed_prefix = 'processed/'
 s3_bucket = os.environ['MAIL_BUCKET']
 lmtp_server, lmtp_port = os.environ['LMTP_SERVER'].rsplit(':', 1)
 lmtp_port = int(lmtp_port)
-processed_prefix = 'processed/'
-if os.getenv('DELETE_PROCESSED_MAIL', 'false').lower() == 'true':
-    delete_processed_mail = True
-else:
-    delete_processed_mail = False
-if os.getenv('DEBUG_MODE', 'false').lower() == 'true':
-    debug_mode = True
-else:
-    debug_mode = False
+delete_processed_mail = env_to_bool('DELETE_PROCESSED_MAIL')
+debug_mode = env_to_bool('DEBUG_MODE')
 
 def main():
-    new_emails = get_new_emails(s3_bucket)
+    new_emails = get_email_objects()
     if new_emails:
         process_emails(new_emails)
     elif debug_mode:
         print("Found no new emails")
 
-def get_new_emails(bucket):
+def get_email_objects():
     client = boto3.client('s3')
     response = client.list_objects_v2(
     Bucket=s3_bucket,

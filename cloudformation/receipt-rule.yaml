@@ -1,16 +1,21 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: |
   Hybrid-Cloud Email Server Receipt Rule.
-  Creates a receipt rule to handle mail for a user.
+  Creates a receipt rule to handle incoming mail for a user.
   Depends on exported values from main stack.
   https://github.com/corey-braun/hybrid-cloud-email
 
 Parameters:
   UserName:
-    Description: The name of the user the receipt rule is for. Messages matching this rule will be stored in S3 under this prefix.
+    Description: |
+      The username of the user this receipt rule is for.
+      Messages matching this rule will be stored in S3 under this prefix.
     Type: String
   RecipientConditions:
-    Description: List of recipient conditions for this rule.
+    Description: |
+      List of recipient conditions for this rule.
+      These conditions determine which "To" addresses will match this rule.
+      For more information, see https://docs.aws.amazon.com/ses/latest/dg/receiving-email-receipt-rules-console-walkthrough.html
     Type: CommaDelimitedList
   ScanMail:
     Description: Should emails handled by this user be scanned by SES for viruses and spam? (yes/no)
@@ -20,7 +25,8 @@ Parameters:
   StopAction:
     Description: |
       Should the rule set stop being processed after matching this rule? (yes/no)
-      If set to "no", messages matching this rule and a later rule will be processed by both, delivering the message to multiple users.
+      If set to "no", messages matching this rule and a later rule will be processed by both,
+      potentially delivering the message to multiple users' prefix in S3.
     Type: String
     Default: 'yes'
     AllowedValues: ['yes', 'no']
@@ -46,6 +52,6 @@ Resources:
                   Scope: RuleSet
               - !Ref "AWS::NoValue"
         Enabled: true
-        Name: !Ref UserName
+        Name: !Ref "AWS::StackName"
         Recipients: !Ref RecipientConditions
         ScanEnabled: !If [ScanIncomingMail, true, false]
