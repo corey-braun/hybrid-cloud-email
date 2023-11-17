@@ -1,5 +1,7 @@
 FROM httpd:2.4.58-alpine3.18
 
+LABEL org.opencontainers.image.url=https://github.com/corey-braun/hybrid-cloud-email
+
 ## Install required packages
 RUN apk add --no-cache bash python3 py3-boto3 tini
 
