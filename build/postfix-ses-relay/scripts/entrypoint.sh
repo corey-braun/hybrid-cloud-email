@@ -4,31 +4,7 @@ REQUIRED_ENV_VARS=(AWS_CREDENTIALS AWS_REGION SASL_SERVER MAX_MESSAGE_SIZE)
 declare -A ENV_VAR_DEFAULTS
 ENV_VAR_DEFAULTS[MAX_MESSAGE_SIZE]=10485760 ## 10MiB, SES default max
 
-log_exit() {
-    echo "Error: $1" >&2
-    exit 1
-}
-
-set_env_vars() {
-    for var in "$@"; do
-        local file_var="${var}_FILE"
-        if [ -n "${!var}" -a -n "${!file_var}" ]; then
-            log_exit "Variables '$var' and '$file_var' are mutually exclusive"
-        elif [ -z "${!var}" -a -z "${!file_var}" -a -n "${ENV_VAR_DEFAULTS[$var]}" ]; then
-            export "$var"="${ENV_VAR_DEFAULTS[$var]}"
-        elif [ -z "${!var}" ]; then
-            if [ -n "${file_var}" -a -r "${!file_var}" ]; then
-                export "$var"="$(< "${!file_var}")"
-            elif [ -z "${!file_var}" ]; then
-                log_exit "Required variable '$var[_FILE]' is unset"
-            elif [ -f "${!file_var}" ]; then
-                log_exit "File specified in '$file_var' is not readable"
-            else
-                log_exit "Couldn't find file specified in '$file_var'"
-            fi
-        fi
-    done
-}
+. common.sh
 
 join_by_char() {
     local IFS="$1"
@@ -64,7 +40,7 @@ fi
 IFS=':' read ACCESS_KEY SECRET_ACCESS_KEY <<< "$AWS_CREDENTIALS"
 [ -z "$ACCESS_KEY" -o -z "$SECRET_ACCESS_KEY" ] && log_exit 'Failed to find access key and secret access key while parsing AWS credentials'
 echo -n "$RELAYHOST $ACCESS_KEY:" > "$SMTP_CREDENTIALS_FILE"
-/srv/scripts/smtp_credentials_generate.py "$SECRET_ACCESS_KEY" "$AWS_REGION" >> "$SMTP_CREDENTIALS_FILE"
+smtp_credentials_generate.py "$SECRET_ACCESS_KEY" "$AWS_REGION" >> "$SMTP_CREDENTIALS_FILE"
 [ $? -ne 0 ] && log_exit 'Failed to convert AWS secret access key and region to SMTP password'
 
 ## Set dovecot SASL address

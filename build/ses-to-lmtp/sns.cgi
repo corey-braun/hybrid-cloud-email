@@ -5,7 +5,7 @@ import subprocess
 import urllib.request
 import json
 
-mail_script = '/srv/scripts/process-new-mail.py'
+mail_script = 'process-new-mail.py'
 
 def main():
     print("Content-Type: text/plain", end="\n\n")

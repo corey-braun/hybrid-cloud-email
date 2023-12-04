@@ -19,7 +19,10 @@ services:
 
   ses-to-lmtp:
     image: coreybraun/ses-to-lmtp
-    build: build/ses-to-lmtp
+    build:
+      context: build/ses-to-lmtp
+      additional_contexts:
+        common: build/common
     container_name: ses-to-lmtp
     hostname: ses-to-lmtp
     restart: unless-stopped
@@ -46,7 +49,10 @@ services:
 
   postfix-ses-relay:
     image: coreybraun/postfix-ses-relay
-    build: build/postfix-ses-relay
+    build:
+      context: build/postfix-ses-relay
+      additional_contexts:
+        common: build/common
     container_name: postfix-ses-relay
     hostname: postfix-ses-relay
     restart: unless-stopped

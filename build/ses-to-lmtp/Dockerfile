@@ -6,7 +6,8 @@ LABEL org.opencontainers.image.url=https://github.com/corey-braun/hybrid-cloud-e
 RUN apk add --no-cache bash python3 py3-boto3 tini
 
 ## Add scripts
-COPY scripts /srv/scripts/
+COPY --from=common common.sh /usr/local/bin/
+COPY scripts /usr/local/bin/
 COPY sns.cgi /srv/cgi/
 
 ## Add config files
@@ -14,4 +15,4 @@ COPY httpd.conf /usr/local/apache2/conf/
 COPY httpd-ssl.conf /usr/local/apache2/conf/extra/
 
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["/srv/scripts/entrypoint.sh"]
+CMD ["entrypoint.sh"]

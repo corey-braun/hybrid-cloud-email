@@ -37,7 +37,8 @@ RUN set -eux; \
 	newaliases
 
 ## Add scripts
-COPY scripts /srv/scripts/
+COPY --from=common common.sh /usr/local/bin/
+COPY scripts /usr/local/bin/
 
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["/srv/scripts/entrypoint.sh"]
+CMD ["entrypoint.sh"]
