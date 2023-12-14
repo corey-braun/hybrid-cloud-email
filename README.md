@@ -4,9 +4,9 @@ A Hybrid-Cloud email server built with AWS and Docker. By using [Amazon SES](htt
 - Blocked ports
 - Non-static IP
 
-Since this solution uses an infrastucture as code design, it is extremely easy to [deploy](#deployment) using [Docker Compose](https://docs.docker.com/compose/) and [AWS CloudFormation](https://aws.amazon.com/cloudformation/).
+Since this solution uses an infrastucture as code design, it is extremely easy to [deploy](#deployment) using [Docker Compose](https://docs.docker.com/compose/) and [AWS CloudFormation](https://aws.amazon.com/cloudformation/). Please note that after deployment & testing, you must [manually request production access to SES](#moving-out-of-the-ses-sandbox) to remove certain restrictions.
 
-It is also typically very [cheap](#pricing) for light personal use thanks to AWS's free tier offerings and prorated billing.
+Light personal use of this solution is typically very [cheap](#pricing) thanks to AWS's free tier offerings and prorated billing.
 
 ## Table of contents
 - [hybrid-cloud-email](#hybrid-cloud-email)
@@ -18,6 +18,7 @@ It is also typically very [cheap](#pricing) for light personal use thanks to AWS
   - [Deployment](#deployment)
     - [AWS](#aws)
     - [Docker](#docker)
+    - [Moving out of the SES sandbox](#moving-out-of-the-ses-sandbox)
   - [Pricing](#pricing)
     - [SES](#ses)
     - [SNS](#sns)
@@ -244,6 +245,27 @@ Once you've finished configuring your `.env` and secret files, you are ready to 
 You can do so with command `docker compose up -d`.
 
 To view the logs of your containers, you can run `docker logs <container_name>`.
+
+### Moving out of the SES sandbox
+Upon initial deployment, your account will still be in the Amazon SES sandbox.
+Until you manually request to move out of the sandbox, [certain restrictions](https://docs.aws.amazon.com/ses/latest/dg/request-production-access.html) will be imposed on your usage of SES, most notably:
+- You can only send mail to verified email addresses and domains, or to [the Amazon SES mailbox simulator](https://docs.aws.amazon.com/ses/latest/dg/send-an-email-from-console.html#send-email-simulator).
+
+Once you've finished deploying, configuring, and testing this solution, you will likely want to request production access to SES. To do so from the AWS Management Console, visit the following page:</br>
+https://console.aws.amazon.com/ses/home#/get-set-up
+
+After following the link above, make sure you have the correct AWS region selected in the console (the same one you deployed your resources in with CloudFormation).
+
+From here, you should be able to click the `Request production access` button, after which you'll have to fill out a form explaining how you plan to use SES. This can be somewhat awkward since the form asks questions intended for businesses sending bulk marketing/transactional emails, so just do your best to explain your use case of sending/receiving personal email.
+
+After filling out the form, you may receieve an automated response starting like this:
+> Hello,
+>
+> Thank you for submitting your request to increase your sending limits. We would like to gather more information about your use case.
+
+If so, try to provide any additional information requested.
+
+After requesting production access, you should receive a response within 24 hours, hopefully telling you that your account has been moved out of the SES sandbox.
 
 ## Pricing
 This section goes over the AWS resources deployed with this solution which Amazon may bill you for.
