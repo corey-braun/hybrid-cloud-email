@@ -93,9 +93,9 @@ For convenience, pre-built docker images from this repository are publicly avail
 - [coreybraun/postfix-ses-relay](https://hub.docker.com/r/coreybraun/postfix-ses-relay)
 
 The CloudFormation templates from this repository are also publicly available in S3 for easy deployment:
-- [main.yaml](https://corey-braun-cloudformation.s3.amazonaws.com/hybrid-cloud-mail/main.yaml)
-- [receipt-rule.yaml](https://corey-braun-cloudformation.s3.amazonaws.com/hybrid-cloud-mail/receipt-rule.yaml)
-- [sns-subscription.yaml](https://corey-braun-cloudformation.s3.amazonaws.com/hybrid-cloud-mail/sns-subscription.yaml)
+- [main.yaml](https://corey-braun-cloudformation.s3.amazonaws.com/hybrid-cloud-email/v1/main.yaml)
+- [receipt-rule.yaml](https://corey-braun-cloudformation.s3.amazonaws.com/hybrid-cloud-email/v1/receipt-rule.yaml)
+- [sns-subscription.yaml](https://corey-braun-cloudformation.s3.amazonaws.com/hybrid-cloud-email/v1/sns-subscription.yaml)
 
 The instructions in this section will assume you are using the templates/images linked above.
 
@@ -114,7 +114,7 @@ In the web console, you can check/change your region on the right side of the to
 Each template has several parameters you must specify; these will determine what resources get created, or how created resources are configured.
 
 #### main.yaml
-[![Launch with AWS](https://docs.aws.amazon.com/images/AmazonCloudFront/latest/DeveloperGuide/images/launch-on-aws-button.png)](https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=CloudMailStack&templateURL=https://corey-braun-cloudformation.s3.amazonaws.com/hybrid-cloud-mail/main.yaml)
+[![Launch with AWS](https://docs.aws.amazon.com/images/AmazonCloudFront/latest/DeveloperGuide/images/launch-on-aws-button.png)](https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=CloudMailStack&templateURL=https://corey-braun-cloudformation.s3.amazonaws.com/hybrid-cloud-email/v1/main.yaml)
 
 This template should be deployed first, as the other templates depend on resource(s) it creates.
 The names or ARNs of these resources are exported in this template's outputs for other templates to reference.
@@ -149,7 +149,7 @@ After creating these DNS records, you can check to see if AWS has verified them 
 Keep in mind that it will take time for your DNS records to propagate and be checked by AWS.
 
 #### receipt-rule.yaml
-[![Launch with AWS](https://docs.aws.amazon.com/images/AmazonCloudFront/latest/DeveloperGuide/images/launch-on-aws-button.png)](https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=userReceiptRule&templateURL=https://corey-braun-cloudformation.s3.amazonaws.com/hybrid-cloud-mail/receipt-rule.yaml)
+[![Launch with AWS](https://docs.aws.amazon.com/images/AmazonCloudFront/latest/DeveloperGuide/images/launch-on-aws-button.png)](https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=userReceiptRule&templateURL=https://corey-braun-cloudformation.s3.amazonaws.com/hybrid-cloud-email/v1/receipt-rule.yaml)
 
 One instance of this template should be deployed per email user. Each instance will create a receipt rule which puts any message matching parameter _RecipientConditions_ into your mail bucket under prefix "_UserName_/". Additionally, each receipt rule will post a notification to your SNS new mail topic when matched.
 
@@ -158,7 +158,7 @@ The receipt rules in your rule set are evaluated in order. When created, new rul
 For more information on recipient conditions and receipt rules, see [this AWS guide](https://docs.aws.amazon.com/ses/latest/dg/receiving-email-receipt-rules-console-walkthrough.html).
 
 #### sns-subscription.yaml
-[![Launch with AWS](https://docs.aws.amazon.com/images/AmazonCloudFront/latest/DeveloperGuide/images/launch-on-aws-button.png)](https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=SnsMailEndpointSubscription&templateURL=https://corey-braun-cloudformation.s3.amazonaws.com/hybrid-cloud-mail/sns-subscription.yaml)
+[![Launch with AWS](https://docs.aws.amazon.com/images/AmazonCloudFront/latest/DeveloperGuide/images/launch-on-aws-button.png)](https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=SnsMailEndpointSubscription&templateURL=https://corey-braun-cloudformation.s3.amazonaws.com/hybrid-cloud-email/v1/sns-subscription.yaml)
 
 This template is used to subscribe your HTTPS endpoint on docker container `ses-to-lmtp` to your SNS new mail topic.
 If sending the subscription message to your HTTPS endpoint fails, there is no way to manually force SNS to send it again.
