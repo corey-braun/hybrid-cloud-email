@@ -1,0 +1,69 @@
+name: Publish tagged release to Docker Hub and S3
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+jobs:
+  docker-build-push:
+    name: Build and push Docker images
+    runs-on: ubuntu-latest
+    env:
+      NAMESPACE: coreybraun
+      BUILD_DIR: ./build
+    strategy:
+      matrix:
+        image: [postfix-ses-relay, ses-to-lmtp]
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.NAMESPACE }}/${{ matrix.image }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ env.BUILD_DIR }}/${{ matrix.image }}
+          build-contexts: |
+            common=${{ env.BUILD_DIR }}/common
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  s3-sync-cloudformation-templates:
+    name: Sync CloudFormation templates to S3
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AWS_REGION: us-east-2
+      SOURCE: ./aws
+      DESTINATION: s3://corey-braun-cloudformation/hybrid-cloud-email/
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.IAM_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Sync CloudFormation templates to S3
+        run: aws s3 sync --delete "${SOURCE}" "${DESTINATION}${GITHUB_REF_NAME%%.*}/"
