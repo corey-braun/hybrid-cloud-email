@@ -53,7 +53,7 @@ jobs:
       contents: read
     env:
       AWS_REGION: us-east-2
-      SOURCE: ./aws
+      SOURCE: ./cloudformation
       DESTINATION: s3://corey-braun-cloudformation/hybrid-cloud-email/
     steps:
       - name: Checkout repo
