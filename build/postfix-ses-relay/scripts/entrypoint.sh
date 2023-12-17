@@ -1,6 +1,6 @@
 #!/bin/bash
 
-REQUIRED_ENV_VARS=(AWS_CREDENTIALS AWS_REGION SASL_SERVER MAX_MESSAGE_SIZE)
+REQUIRED_ENV_VARS=(AWS_CREDENTIALS AWS_REGION SASL_ADDRESS MAX_MESSAGE_SIZE)
 declare -A ENV_VAR_DEFAULTS
 ENV_VAR_DEFAULTS[MAX_MESSAGE_SIZE]=10485760 ## 10MiB, SES default max
 
@@ -43,8 +43,8 @@ echo -n "$RELAYHOST $ACCESS_KEY:" > "$SMTP_CREDENTIALS_FILE"
 smtp_credentials_generate.py "$SECRET_ACCESS_KEY" "$AWS_REGION" >> "$SMTP_CREDENTIALS_FILE"
 [ $? -ne 0 ] && log_exit 'Failed to convert AWS secret access key and region to SMTP password'
 
-## Set dovecot SASL address
-postconf -P "submission/inet/smtpd_sasl_path=inet:$SASL_SERVER"
+## Set SASL address for submission service client authentication
+postconf -P "submission/inet/smtpd_sasl_path=inet:$SASL_ADDRESS"
 
 ## Configure SES as relayhost
 postconf -e "relayhost=$RELAYHOST"

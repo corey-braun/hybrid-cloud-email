@@ -35,7 +35,7 @@ services:
       - ${SSL_KEY}:/srv/key.pem:ro
     environment:
       - TZ
-      - LMTP_SERVER=dovecot:24 ## <container_name>:<lmtp_port>
+      - LMTP_ADDRESS=dovecot:24 ## <host>:<port>
       - AWS_CREDENTIALS_FILE=/run/secrets/aws_access_key
       - SNS_CREDENTIALS_FILE=/run/secrets/sns_passwd
       - MAIL_BUCKET
@@ -66,7 +66,7 @@ services:
       #- ./custom_login_map:/etc/postfix/custom_login_map ## Mount custom login map
     environment:
       - TZ
-      - SASL_SERVER=dovecot:12345 ## <container_name>:<sasl_port>
+      - SASL_ADDRESS=dovecot:12345 ## <host>:<port>
       - AWS_CREDENTIALS_FILE=/run/secrets/aws_access_key
       - AWS_REGION
       - SENDER_DOMAINS

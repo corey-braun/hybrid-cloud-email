@@ -16,7 +16,7 @@ def env_to_bool(env_var):
 
 processed_prefix = 'processed/'
 s3_bucket = os.environ['MAIL_BUCKET']
-lmtp_server, lmtp_port = os.environ['LMTP_SERVER'].rsplit(':', 1)
+lmtp_host, lmtp_port = os.environ['LMTP_ADDRESS'].rsplit(':', 1)
 lmtp_port = int(lmtp_port)
 delete_processed_mail = env_to_bool('DELETE_PROCESSED_MAIL')
 debug_mode = env_to_bool('DEBUG_MODE')
@@ -38,7 +38,7 @@ def get_email_objects():
 
 def process_emails(objects_list):
     s3 = boto3.resource('s3')
-    with smtplib.LMTP(lmtp_server, lmtp_port) as server:
+    with smtplib.LMTP(lmtp_host, lmtp_port) as server:
         for i in objects_list:
             try:
                 reciever = i.split('/', 1)[0]
