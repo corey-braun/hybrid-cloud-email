@@ -97,6 +97,9 @@ The CloudFormation templates from this repository are also publicly available in
 - [receipt-rule.yaml](https://corey-braun-cloudformation.s3.amazonaws.com/hybrid-cloud-email/v1/receipt-rule.yaml)
 - [sns-subscription.yaml](https://corey-braun-cloudformation.s3.amazonaws.com/hybrid-cloud-email/v1/sns-subscription.yaml)
 
+Note: Only CloudFormation templates from the most recent [GitHub release](https://github.com/corey-braun/hybrid-cloud-email/releases) of each major version are hosted in S3.
+To deploy a newer/older version of a template, you must upload the template file manually.
+
 The instructions in this section will assume you are using the templates/images linked above.
 
 It is recommended to deploy the `main.yaml` CloudFormation template before any docker containers.

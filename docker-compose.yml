@@ -1,6 +1,6 @@
 services:
   dovecot:
-    image: dovecot/dovecot:latest
+    image: dovecot/dovecot:2.3.21
     container_name: dovecot
     hostname: dovecot
     restart: unless-stopped
@@ -18,7 +18,7 @@ services:
       - dovecot_passwd
 
   ses-to-lmtp:
-    image: coreybraun/ses-to-lmtp
+    image: coreybraun/ses-to-lmtp:1
     build:
       context: build/ses-to-lmtp
       additional_contexts:
@@ -48,7 +48,7 @@ services:
       - sns_passwd
 
   postfix-ses-relay:
-    image: coreybraun/postfix-ses-relay
+    image: coreybraun/postfix-ses-relay:1
     build:
       context: build/postfix-ses-relay
       additional_contexts:
