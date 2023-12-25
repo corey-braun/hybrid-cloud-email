@@ -18,7 +18,7 @@ services:
       - dovecot_passwd
 
   ses-to-lmtp:
-    image: coreybraun/ses-to-lmtp:1
+    image: coreybraun/ses-to-lmtp:2
     build:
       context: build/ses-to-lmtp
       additional_contexts:
@@ -48,7 +48,7 @@ services:
       - postfix_lookup_table
 
   postfix-ses-relay:
-    image: coreybraun/postfix-ses-relay:1
+    image: coreybraun/postfix-ses-relay:2
     build:
       context: build/postfix-ses-relay
       additional_contexts:
