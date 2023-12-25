@@ -1,10 +1,9 @@
 AWSTemplateFormatVersion: 2010-09-09
 Transform: AWS::LanguageExtensions
 Description: |
-  Hybrid-Cloud Email Server General Setup.
-  Creates required SES, SNS, and S3 resources.
-  Outputs DNS records that must be created.
-  Exports resources names/arns for other templates.
+  Hybrid-Cloud Email Server AWS resource stack.
+  Deploys IAM, SES, SNS, SQS, and S3 resources.
+  Output keys containing "DnsRecord" have values which must be registered as DNS records.
   https://github.com/corey-braun/hybrid-cloud-email
 
 Parameters:
@@ -22,27 +21,40 @@ Parameters:
       The records to create will be listed in the template's "Outputs" section.
       For more information, see https://docs.aws.amazon.com/ses/latest/dg/mail-from.html
     Type: String
-  ProcessedPrefixExpirationDays:
+    Default: 'mail'
+  RecipientConditions:
     Description: |
-      The number of days before processed email objects (those with the "processed/" prefix) expire.
-      Since bucket versioning is disabled, objects will be deleted upon expiration.
-    Type: Number
-    Default: 14
-    MinValue: 1
-    MaxValue: 365
+      List of recipient conditions for your SES receipt rule.
+      These conditions determine which recipient addresses SES will accept mail for.
+      If unset, no recipient conditions are set (therefore matching all recipients in all verified domains).
+      For more information, see https://docs.aws.amazon.com/ses/latest/dg/receiving-email-receipt-rules-console-walkthrough.html#receipt-rules-create-rule-settings
+    Type: CommaDelimitedList
+  ScanReceivedMail:
+    Description: |
+      Should received emails be scanned by SES for viruses and spam? (yes/no)
+      If enabled, SES will add headers "X-SES-Spam-Verdict" and "X-SES-Virus-Verdict" to each received email.
+      For more information, see https://docs.aws.amazon.com/ses/latest/dg/receiving-email-concepts.html#receiving-email-auth-and-scan
+    Type: String
+    Default: 'no'
+    AllowedValues: ['yes', 'no']
+  SnsHttpsEndpointAddress:
+    Description: |
+      The URI of your SNS HTTPS endpoint in format "https://<username>:<password>@<host>:<port>".
+      This endpoint must serve a valid SSL certificate signed by a trusted CA.
+      Any special characters in the basic auth username or password must be percent encoded.
+      For more information, see https://en.wikipedia.org/wiki/Percent-encoding
+    Type: String
+    MinLength: 8
+    NoEcho: true
 
 Conditions:
   UseCustomMailFrom: !Not [!Equals [!Ref MailFromSubDomain, ""]]
+  RecipientConditionsSet: !Not [!Equals [!Join ["", !Ref RecipientConditions], ""]]
+  ScanIncomingMail: !Equals [!Ref ScanReceivedMail, 'yes']
 
 Resources:
   S3MailBucket:
     Type: AWS::S3::Bucket
-    Properties:
-      LifecycleConfiguration:
-        Rules:
-          - Prefix: 'processed/'
-            Status: Enabled
-            ExpirationInDays: !Ref ProcessedPrefixExpirationDays
   S3MailBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -50,18 +62,38 @@ Resources:
       PolicyDocument:
         Version: 2012-10-17
         Statement:
-          - Action:
-              - 's3:PutObject'
-            Effect: Allow
-            Resource: !Sub "arn:aws:s3:::${S3MailBucket}/*"
+          - Effect: Allow
             Principal:
               Service: "ses.amazonaws.com"
+            Action:
+              - s3:PutObject
+            Resource: !Sub "${S3MailBucket.Arn}/*"
             Condition:
               StringLike:
+                AWS:SourceAccount: !Ref AWS::AccountId
                 AWS:SourceArn: !Sub "arn:aws:ses:${AWS::Region}:${AWS::AccountId}:receipt-rule-set/${SesReceiptRuleSet}:receipt-rule/*"
-                AWS:SourceAccount: !Ref "AWS::AccountId"
   SnsNewMailTopic:
     Type: AWS::SNS::Topic
+  SqsNewMailDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 3600
+  SnsHttpsEndpointSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref SnsNewMailTopic
+      Endpoint: !Ref SnsHttpsEndpointAddress
+      Protocol: "https"
+      DeliveryPolicy:
+        healthyRetryPolicy:
+          minDelayTarget: 60
+          maxDelayTarget: 3540
+          numRetries: 2
+          numMinDelayRetries: 1
+          numMaxDelayRetries: 1
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt SqsNewMailDeadLetterQueue.Arn
   Fn::ForEach::EmailIdentities:
     - Domain
     - !Split [",", !Join ["Dot", !Split [".", !Join [",", !Ref MailDomains]]]]
@@ -70,29 +102,44 @@ Resources:
         Properties:
           EmailIdentity: !Join [".", !Split ["Dot", !Ref Domain]]
           MailFromAttributes:
-            BehaviorOnMxFailure: !If [UseCustomMailFrom, "REJECT_MESSAGE", !Ref "AWS::NoValue"]
-            MailFromDomain: !If [UseCustomMailFrom, !Join [".", [!Ref MailFromSubDomain, !Join [".", !Split ["Dot", !Ref Domain]]]], !Ref "AWS::NoValue"]
+            BehaviorOnMxFailure: !If [UseCustomMailFrom, "REJECT_MESSAGE", !Ref AWS::NoValue]
+            MailFromDomain: !If [UseCustomMailFrom, !Join [".", [!Ref MailFromSubDomain, !Join [".", !Split ["Dot", !Ref Domain]]]], !Ref AWS::NoValue]
   SesReceiptRuleSet:
     Type: AWS::SES::ReceiptRuleSet
+  SesReceiptRule:
+    Type: AWS::SES::ReceiptRule
+    DependsOn: S3MailBucketPolicy
+    Properties:
+      RuleSetName: !Ref SesReceiptRuleSet
+      Rule:
+        Actions:
+          - S3Action:
+              BucketName: !Ref S3MailBucket
+              ObjectKeyPrefix: "new/"
+              TopicArn: !Ref SnsNewMailTopic
+        Enabled: true
+        Name: MailToS3
+        Recipients: !If [RecipientConditionsSet, !Ref RecipientConditions, !Ref AWS::NoValue]
+        ScanEnabled: !If [ScanIncomingMail, true, false]
   IamMailUser:
     Type: AWS::IAM::User
     Properties:
       Policies:
-        - PolicyName: process-mail
+        - PolicyName: process-s3-mail
           PolicyDocument:
             Version: 2012-10-17
             Statement:
               - Effect: Allow
-                Action: s3:ListBucket
-                Resource: !Sub "arn:aws:s3:::${S3MailBucket}"
-              - Effect: Allow
                 Action:
-                  - s3:GetObjectAcl
+                  - s3:ListBucket
                   - s3:GetObject
+                  - s3:GetObjectAcl
                   - s3:PutObject
                   - s3:DeleteObject
-                Resource: !Sub "arn:aws:s3:::${S3MailBucket}/*"
-        - PolicyName: send-mail
+                Resource:
+                  - !Sub "${S3MailBucket.Arn}/*"
+                  - !GetAtt S3MailBucket.Arn
+        - PolicyName: send-ses-mail
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -101,17 +148,26 @@ Resources:
                   - ses:SendEmail
                   - ses:SendRawEmail
                 Resource: "*"
+        - PolicyName: process-dead-letter-queue
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:DeleteMessage
+                  - sqs:ReceiveMessage
+                Resource: !GetAtt SqsNewMailDeadLetterQueue.Arn
 
 Outputs:
-  Fn::ForEach::MailReceivingMxRecords:
+  Fn::ForEach::MailReceivingMxDnsRecords:
     - Domain
     - !Split [",", !Join ["Dot", !Split [".", !Join [",", !Ref MailDomains]]]]
     - '${Domain}MailReceivingMxDnsRecord':
         Value: !Join
           - " MX "
           - - !Join [".", !Split ["Dot", !Ref Domain]]
-            - !Join ["", ["10 inbound-smtp.", !Ref "AWS::Region", ".amazonaws.com"]]
-  Fn::ForEach::DkimDnsRecords:
+            - !Join ["", ["10 inbound-smtp.", !Ref AWS::Region, ".amazonaws.com"]]
+  Fn::ForEach::DkimCnameDnsRecords:
     - Domain
     - !Split [",", !Join ["Dot", !Split [".", !Join [",", !Ref MailDomains]]]]
     - Fn::ForEach::DkimGetAttNumLoop:
@@ -119,16 +175,16 @@ Outputs:
         - ["1", "2", "3"]
         - '${Domain}DkimCnameDnsRecord${Number}':
             Value: !Join [" CNAME ", [!GetAtt [!Ref Domain, !Sub "DkimDNSTokenName${Number}"], !GetAtt [!Ref Domain, !Sub "DkimDNSTokenValue${Number}"]]]
-  Fn::ForEach::CustomMailFromMxRecords:
+  Fn::ForEach::CustomMailFromMxDnsRecords:
     - Domain
     - !Split [",", !Join ["Dot", !Split [".", !Join [",", !Ref MailDomains]]]]
     - '${Domain}CustomMailFromMxDnsRecord':
         Value: !Join
           - " MX "
           - - !Join [".", [!Ref MailFromSubDomain, !Join [".", !Split ["Dot", !Ref Domain]]]]
-            - !Join ["", ["10 feedback-smtp.", !Ref "AWS::Region", ".amazonses.com"]]
+            - !Join ["", ["10 feedback-smtp.", !Ref AWS::Region, ".amazonses.com"]]
         Condition: UseCustomMailFrom
-  Fn::ForEach::CustomMailFromSpfRecords:
+  Fn::ForEach::CustomMailFromSpfDnsRecords:
     - Domain
     - !Split [",", !Join ["Dot", !Split [".", !Join [",", !Ref MailDomains]]]]
     - '${Domain}CustomMailFromSpfDnsRecord':
@@ -137,15 +193,5 @@ Outputs:
           - - !Join [".", [!Ref MailFromSubDomain, !Join [".", !Split ["Dot", !Ref Domain]]]]
             - '"v=spf1 include:amazonses.com ~all"'
         Condition: UseCustomMailFrom
-  SesMailReceivingRuleSet:
-    Value: !Ref SesReceiptRuleSet
-    Export:
-      Name: SesMailReceivingRuleSet
-  S3MailStorageBucket:
-    Value: !Ref S3MailBucket
-    Export:
-      Name: S3MailStorageBucket
-  SnsNewMailTopicArn:
-    Value: !Ref SnsNewMailTopic
-    Export:
-      Name: SnsNewMailTopicArn
+  DeadLetterQueueUrl:
+    Value: !Ref SqsNewMailDeadLetterQueue
