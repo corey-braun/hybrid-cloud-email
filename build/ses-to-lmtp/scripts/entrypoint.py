@@ -1,30 +1,30 @@
 #!/usr/bin/env python3
-import os
-import sys
-import signal
+import base64
+import email
+import functools
+import http.server
+import json
 import logging
+import os
+import signal
+import smtplib
+import ssl
+import subprocess
+import sys
 import threading
+import urllib.request
+from http import HTTPStatus
 
 import boto3
 import botocore.exceptions
-import email
-import smtplib
-import subprocess
-import urllib.request
-import http.server
-from http import HTTPStatus
 
-import ssl
-import json
-import base64
-import functools
 
 class SNSEndpointHandler(http.server.BaseHTTPRequestHandler):
-    protocol_version = "HTTP/1.1" ## Required for SNS HTTPS endpoint
+    protocol_version = 'HTTP/1.1' ## Required for SNS HTTPS endpoint
     timeout = 30
 
     def send_response(self, code, message=None):
-        """Direct copy of parent class's method, but doesn't send 'Server' header to clients."""
+        ## Direct copy of parent class's method, but doesn't send 'Server' header to clients.
         self.log_request(code)
         self.send_response_only(code, message)
         #self.send_header('Server', self.version_string())
@@ -36,14 +36,16 @@ class SNSEndpointHandler(http.server.BaseHTTPRequestHandler):
         self.message_handler = message_handler
         super().__init__(*args, **kwargs)
 
-    def send_status(self, code, additional_headers={}):
+    def send_status(self, code, additional_headers=None):
         """Given an HTTP status code, sends the client appropriate response headers and body to indicate request status.
         Optionally, additional headers to send the client may be provided as a dict."""
+        if additional_headers is None:
+            additional_headers = {}
         self.send_response(code)
         self.send_header('Content-Type', 'text/plain')
         for k, v in additional_headers.items():
             self.send_header(k, v)
-        content = f"{code} {HTTPStatus(code).phrase}\n".encode()
+        content = f'{code} {HTTPStatus(code).phrase}\n'.encode()
         self.send_header('Content-Length', str(len(content)))
         self.end_headers()
         self.wfile.write(content)
@@ -57,19 +59,19 @@ class SNSEndpointHandler(http.server.BaseHTTPRequestHandler):
         self.send_status(401, {'WWW-Authenticate': 'Basic realm="sns"'})
         return False
 
-    def do_HEAD(self):
+    def do_HEAD(self):  # noqa: N802
         """HTTP HEAD method.
         Not required for SNS message delivery, but can be useful when testing endpoint availability."""
         if self.authenticate_client():
             self.send_status(200)
 
-    def do_GET(self):
+    def do_GET(self):  # noqa: N802
         """HTTP GET method.
         Not required for SNS message delivery, but can be useful when testing endpoint availability."""
         if self.authenticate_client():
             self.send_status(200)
 
-    def do_POST(self):
+    def do_POST(self):  # noqa: N802
         """HTTP POST method.
         Handles SNS notifications based on the message type indicated."""
         length = self.headers['Content-Length']
@@ -84,13 +86,13 @@ class SNSEndpointHandler(http.server.BaseHTTPRequestHandler):
                             self.message_handler(notification['Message'])
                         except TypeError:
                             if not self.message_handler:
-                                logging.error("Received SNS notification message, but no message handler is configured")
+                                logging.error('Received SNS notification message, but no message handler is configured')
                             raise
                         ## Typically an exception would happen here due to misconfiguration, so while we couldn't process the message this time, we may be able to later.
                         ## By sending a status of code outside the 2XX-4XX range, we're telling SNS to consider notification delivery a failure.
                         ## This means the notification will be sent to the dead letter queue, giving us a chance to retry later.
                         except Exception:
-                            logging.error("Processing of SNS notification failed")
+                            logging.error('Processing of SNS notification failed')
                             self.send_status(500)
                             return
                     case 'SubscriptionConfirmation':
@@ -100,7 +102,8 @@ class SNSEndpointHandler(http.server.BaseHTTPRequestHandler):
                     case 'UnsubscribeConfirmation':
                         logging.info(f"Unsubscribed from SNS topic '{notification['TopicArn']}'")
                     case _:
-                        raise ValueError(f"Unknown SNS message type: '{notification['Type']}'")
+                        err = f"Unknown SNS message type: '{notification['Type']}'"
+                        raise ValueError(err)
             except Exception:
                 self.send_status(400)
                 raise
@@ -125,14 +128,15 @@ class S3MailProcessor:
         If none of the provided addresses return a username when looked up, an exception is raised."""
         users = set()
         for address in addresses:
-            lookup_result = subprocess.run(['postmap', '-q', address, self.postfix_lookup_table], capture_output=True)
+            lookup_result = subprocess.run(['postmap', '-q', address, self.postfix_lookup_table], capture_output=True, check=True)
             user = lookup_result.stdout.decode().rstrip()
             if user:
                 users.add(user)
             else:
                 logging.warning(f"Postmap lookup for email address '{address}' returned no result")
         if not users:
-            raise ValueError("None of the provided addresses returned a local account username")
+            err = 'None of the provided addresses returned a local account username'
+            raise ValueError(err)
         return list(users)
 
     def process_s3_email(self, bucket, key, to_addrs=None):
@@ -168,7 +172,7 @@ class S3MailProcessor:
             key = message['receipt']['action']['objectKey']
             recipients = message['receipt']['recipients']
         except Exception:
-            logging.exception("Notification message parsing failed:")
+            logging.exception('Notification message parsing failed:')
             raise
         self.process_s3_email(bucket, key, recipients)
 
@@ -194,7 +198,8 @@ def get_env(var, **kwargs):
         return kwargs['default']
     except KeyError:
         pass
-    raise KeyError(f"Environment variable '{var}[_FILE]' is unset")
+    err = f"Environment variable '{var}[_FILE]' is unset"
+    raise KeyError(err)
 
 def get_boto3_session(access_key, secret_access_key):
     """Given AWS IAM credentials, return a boto3 session.
@@ -204,10 +209,11 @@ def get_boto3_session(access_key, secret_access_key):
         sts = session.client('sts')
         sts.get_caller_identity()
     except botocore.exceptions.ClientError as e:
-        raise ValueError("Invalid or expired AWS credentials") from e
+        err = 'Invalid or expired AWS credentials'
+        raise ValueError(err) from e
     return session
 
-def queue_processing_thread_worker(queue, mail_processor, stop_event, run_interval):
+def queue_processing_thread_worker(queue, mail_processor, stop_event, run_interval):  # noqa: PLR0912
     """Process new mail notifications in SQS queue on thread start, then again every run_interval seconds.
     When stop_event is set, finishes current operation then exits cleanly."""
     while True:
@@ -225,7 +231,7 @@ def queue_processing_thread_worker(queue, mail_processor, stop_event, run_interv
                 if not messages:
                     break
             except Exception:
-                logging.exception("Error polling for new SQS messages:")
+                logging.exception('Error polling for new SQS messages:')
                 break
             for msg in messages:
                 if stop_event.is_set():
@@ -234,35 +240,35 @@ def queue_processing_thread_worker(queue, mail_processor, stop_event, run_interv
                     mail_processor.process_notification_message(json.loads(msg.body)['Message'])
                 except botocore.exceptions.ClientError as e:
                     if e.response['Error']['Code'] == 'NoSuchKey':
-                        logging.error("Specified S3 object key does not exist, deleting notification")
+                        logging.error('Specified S3 object key does not exist, deleting notification')
                     else:
                         raise
                 except Exception:
-                    logging.error("Notification handling failed")
+                    logging.error('Notification handling failed')
                     failures += 1
                     continue
                 try:
                     msg.delete()
                     successes += 1
                 except Exception:
-                    logging.exception("Error deleting processed notification from queue")
+                    logging.exception('Error deleting processed notification from queue')
         total_messages = successes + failures
         if total_messages:
-            logging.info(f"Finished processing {total_messages} SQS messages:\n{successes} processed and deleted successfully.\n{failures} failed to process and will be retried.")
+            logging.info(f'Finished processing {total_messages} SQS messages:\n{successes} processed and deleted successfully.\n{failures} failed to process and will be retried.')
         if stop_event.wait(run_interval):
             break
-    logging.debug("Queue processing thread exiting")
+    logging.debug('Queue processing thread exiting')
 
 def serve_endpoint(basic_auth_credentials, message_handler=None, port=443, ssl_cert='/srv/cert.pem', ssl_key='/srv/key.pem'):
     """Configure SNS HTTPS endpoint, then start it with serve_forever method."""
     if not message_handler:
-        logging.warning("No notification message processing method is available; SNS endpoint will handle subscription-related notifications only.")
+        logging.warning('No notification message processing method is available; SNS endpoint will handle subscription-related notifications only.')
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain(ssl_cert, ssl_key)
     handler = functools.partial(SNSEndpointHandler, basic_auth_credentials=basic_auth_credentials, message_handler=message_handler)
     httpd = http.server.ThreadingHTTPServer(('', port), handler)
     httpd.socket = context.wrap_socket(httpd.socket, server_side=True)
-    logging.info("Starting SNS HTTPS endpoint")
+    logging.info('Starting SNS HTTPS endpoint')
     httpd.serve_forever()
 
 def main():
@@ -271,7 +277,7 @@ def main():
 
     ## Shutdown signal handler function
     def shutdown_signal_handler(signal, frame):
-        logging.debug("Received shutdown signal")
+        logging.debug('Received shutdown signal')
         shutdown_event.set()
         sys.exit(0)
 
@@ -282,7 +288,8 @@ def main():
     log_level_name = get_env('LOG_LEVEL', default='INFO')
     log_level = getattr(logging, log_level_name.upper(), None)
     if not isinstance(log_level, int):
-        raise ValueError(f"Invalid value for environment variable 'LOG_LEVEL': '{log_level_name}'")
+        err = f"Invalid value for environment variable 'LOG_LEVEL': '{log_level_name}'"
+        raise ValueError(err)
     logging.basicConfig(
         stream=sys.stdout,
         format='%(asctime)s %(levelname)s - %(message)s',
@@ -305,7 +312,7 @@ def main():
         message_handler = mail_processor.process_notification_message
     except Exception:
         message_handler = None
-        logging.exception("Mail processor configuration failed:")
+        logging.exception('Mail processor configuration failed:')
     else:
         ## Start dead letter queue processing thread
         try:
@@ -320,11 +327,11 @@ def main():
                     int(get_env('DEAD_LETTER_QUEUE_CHECK_INTERVAL', default=21600))
                     )
                 )
-            logging.info("Starting dead letter queue processing thread")
+            logging.info('Starting dead letter queue processing thread')
             dlq_processing_thread.start()
         except Exception:
-            logging.exception("Error starting dead letter queue processing thread:")
-            logging.warning("Dead letter queue processing thread is not running; SNS endpoint will function normally, but missed notifications will not be retried.")
+            logging.exception('Error starting dead letter queue processing thread:')
+            logging.warning('Dead letter queue processing thread is not running; SNS endpoint will function normally, but missed notifications will not be retried.')
 
     ## Serve SNS HTTPS endpoint
     try:
@@ -333,9 +340,9 @@ def main():
             message_handler
             )
     except Exception:
-        logging.critical("Failed to start SNS endpoint:")
+        logging.critical('Failed to start SNS endpoint:')
         logging.exception()
         signal.raise_signal(signal.SIGTERM)
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
