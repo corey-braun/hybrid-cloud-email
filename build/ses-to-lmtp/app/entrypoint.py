@@ -23,12 +23,9 @@ class SNSEndpointHandler(http.server.BaseHTTPRequestHandler):
     protocol_version = 'HTTP/1.1' ## Required for SNS HTTPS endpoint
     timeout = 30
 
-    def send_response(self, code, message=None):
-        ## Direct copy of parent class's method, but doesn't send 'Server' header to clients.
-        self.log_request(code)
-        self.send_response_only(code, message)
-        #self.send_header('Server', self.version_string())
-        self.send_header('Date', self.date_time_string())
+    def version_string(self):
+        ## Used as value of "Server" header sent to clients
+        return 'SNS Endpoint'
 
     def __init__(self, *args, basic_auth_credentials, message_handler=None, **kwargs):
         """Sets auth_key variable to check client 'Authorization' header value against, then invokes parent class's __init__() method."""
@@ -82,19 +79,10 @@ class SNSEndpointHandler(http.server.BaseHTTPRequestHandler):
                 notification = json.loads(post_body)
                 match notification['Type']:
                     case 'Notification':
-                        try:
-                            self.message_handler(notification['Message'])
-                        except TypeError:
-                            if not self.message_handler:
-                                logging.error('Received SNS notification message, but no message handler is configured')
-                            raise
-                        ## Typically an exception would happen here due to misconfiguration, so while we couldn't process the message this time, we may be able to later.
-                        ## By sending a status of code outside the 2XX-4XX range, we're telling SNS to consider notification delivery a failure.
-                        ## This means the notification will be sent to the dead letter queue, giving us a chance to retry later.
-                        except Exception:
-                            logging.error('Processing of SNS notification failed')
-                            self.send_status(500)
-                            return
+                        if self.message_handler is None:
+                            err = 'No notification message handler is configured'
+                            raise TypeError(err)
+                        self.message_handler(notification['Message'])
                     case 'SubscriptionConfirmation':
                         with urllib.request.urlopen(notification['SubscribeURL']) as response:
                             response.read()
@@ -105,8 +93,11 @@ class SNSEndpointHandler(http.server.BaseHTTPRequestHandler):
                         err = f"Unknown SNS message type: '{notification['Type']}'"
                         raise ValueError(err)
             except Exception:
-                self.send_status(400)
-                raise
+                logging.exception('Processing of SNS notification failed:')
+                ## Typically an exception would happen here due to misconfiguration, so while we failed to process the notification this time, we may be able to later.
+                ## By sending a status of code outside the 2XX-4XX range, we're telling SNS to consider notification delivery a failure.
+                ## This causes the notification to be sent again or placed in the dead letter queue.
+                self.send_status(500)
             else:
                 self.send_status(200)
 
@@ -123,8 +114,8 @@ class S3MailProcessor:
             server.send_message(msg, from_addr=msg['Return-Path'], to_addrs=recipients)
 
     def translate_email_addresses(self, addresses):
-        """Use postfix's postmap utility to translate a list of email addresses to local account usernames.
-        Only one instance of each username is included in the returned list, even if multiple addresses resolve to the same username.
+        """Use postfix's postmap utility to translate a list of email addresses to a set of local account usernames.
+        Since a set is returned, multiple addresses resolving to the same username will not create duplicate entries.
         If none of the provided addresses return a username when looked up, an exception is raised."""
         users = set()
         for address in addresses:
@@ -135,9 +126,9 @@ class S3MailProcessor:
             else:
                 logging.warning(f"Postmap lookup for email address '{address}' returned no result")
         if not users:
-            err = 'None of the provided addresses returned a local account username'
+            err = 'None of the provided email addresses returned a local account username'
             raise ValueError(err)
-        return list(users)
+        return users
 
     def process_s3_email(self, bucket, key, to_addrs=None):
         """Process S3 email message object.
@@ -152,7 +143,7 @@ class S3MailProcessor:
             recipients = self.translate_email_addresses(to_addrs)
             self.deliver_email_message(msg, recipients)
         except Exception:
-            logging.exception(f"Error processing email object '{key}' in bucket '{bucket}':")
+            logging.error(f"Failed to process email object '{key}' in bucket '{bucket}'")
             raise
         else:
             self.s3.delete_object(**s3_kwargs)
@@ -172,7 +163,7 @@ class S3MailProcessor:
             key = message['receipt']['action']['objectKey']
             recipients = message['receipt']['recipients']
         except Exception:
-            logging.exception('Notification message parsing failed:')
+            logging.error('Failed to parse mail delivery notification message')
             raise
         self.process_s3_email(bucket, key, recipients)
 
@@ -244,7 +235,7 @@ def queue_processing_thread_worker(queue, mail_processor, stop_event, run_interv
                     else:
                         raise
                 except Exception:
-                    logging.error('Notification handling failed')
+                    logging.exception('Processing of SQS notification failed:')
                     failures += 1
                     continue
                 try:
