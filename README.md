@@ -249,10 +249,9 @@ Each "DnsRecord" output's value contains a DNS record formatted as follows:
 
 With some DNS providers, the number at the start of each MX record's answer may need to be entered in a separate "Priority" field, rather than included in the answer section.
 
-If you wish to create these DNS records programmatically (by using your nameservers' API, for example), you can use the following [AWS CLI](https://aws.amazon.com/cli/) command to get the value of every "DnsRecord" output as a JSON-formatted list:
-```
-aws cloudformation describe-stacks --stack-name HybridCloudEmail --query "Stacks[0].Outputs[?contains(OutputKey,'DnsRecord')].OutputValue"
-```
+If you wish to create these DNS records programmatically, see [create-porkbun-dns-records.sh](https://github.com/corey-braun/hybrid-cloud-email/blob/main/create-porkbun-dns-records.sh).
+This Bash script uses the [AWS CLI](https://aws.amazon.com/cli/) to get each DnsRecord output, then creates each record using [my Porkbun API Bash script](https://github.com/corey-braun/porkbun-api-bash).
+In the likely event you aren't using Porkbun's nameservers, this script could be adapted to work with another nameserver's API.
 
 After creating these DNS records, you can check to see if AWS has successfully verified your domain identities [here](https://console.aws.amazon.com/ses/home#/verified-identities).
 Keep in mind that it will take time for your DNS records to propagate and be checked by AWS.
