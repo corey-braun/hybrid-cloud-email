@@ -4,7 +4,7 @@ A Hybrid-Cloud email server built with AWS and Docker. By using [Amazon SES](htt
 - Blocked ports
 - Non-static IP
 
-Since this solution uses an infrastructure as code design, it is extremely easy to [deploy](#deployment) using [Docker Compose](https://docs.docker.com/compose/) and [AWS CloudFormation](https://aws.amazon.com/cloudformation/). Please note that after deployment & testing, you must [manually request production access to SES](#moving-out-of-the-ses-sandbox) to remove certain restrictions.
+Since this solution uses an infrastructure as code design, it can be easily [deployed](#deployment) using [Docker Compose](https://docs.docker.com/compose/) and [AWS CloudFormation](https://aws.amazon.com/cloudformation/). Please note that after deployment & testing, you must [manually request production access to SES](#moving-out-of-the-ses-sandbox) to remove certain restrictions.
 
 Light personal use of this solution is typically very [cheap](#pricing) thanks to AWS's free tier offerings and prorated billing.
 
