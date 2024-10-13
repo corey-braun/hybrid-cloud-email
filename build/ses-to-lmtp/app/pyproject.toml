@@ -3,32 +3,32 @@ line-length = 300
 
 [tool.ruff.lint]
 select = [
-    "A", # flake8-builtins
-    "B", # flake8-bugbear
-    "BLE", # flake8-blind-except
-    "C4", # flake8-comprehensions
-    "DTZ", # flake8-datetimez
-    "E", # pycodestyle errors
-    "EM", # flake8-errmsg
-    "F", # pyflakes
-    "FBT", # flake8-boolean-trap
-    "I", # isort
-    "ICN", # flake8-import-conventions
-    "ISC", # flake8-implicit-str-concat
-    "N", # pep8-naming
-    "PL", # pylint
-    "Q", # flake8-quotes
-    "RET", # flake8-return
-    "RUF", # ruff-specific
-    "SIM", # flake8-simplify
-    "T10", # flake8-debugger
-    "T20", # flake8-print
-    "UP", # pyupgrade
-    "W", # pycodestyle warnings
+    "A",  # flake8-builtins
+    "B",  # flake8-bugbear
+    "BLE",  # flake8-blind-except
+    "C4",  # flake8-comprehensions
+    "DTZ",  # flake8-datetimez
+    "E",  # pycodestyle errors
+    "EM",  # flake8-errmsg
+    "F",  # pyflakes
+    "FBT",  # flake8-boolean-trap
+    "I",  # isort
+    "ICN",  # flake8-import-conventions
+    "ISC",  # flake8-implicit-str-concat
+    "N",  # pep8-naming
+    "PL",  # pylint
+    "Q",  # flake8-quotes
+    "RET",  # flake8-return
+    "RUF",  # ruff-specific
+    "SIM",  # flake8-simplify
+    "T10",  # flake8-debugger
+    "T20",  # flake8-print
+    "UP",  # pyupgrade
+    "W",  # pycodestyle warnings
 ]
 
 ignore = [
-    "E501" # line-too-long
+    "E501"  # line-too-long
 ]
 
 [tool.ruff.lint.flake8-quotes]

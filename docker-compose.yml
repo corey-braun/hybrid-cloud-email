@@ -5,8 +5,8 @@ services:
     hostname: dovecot
     restart: unless-stopped
     ports:
-      - ${IMAPS_PORT}:993 ## IMAPS port for SSL/TLS connections
-      - ${IMAP_STARTTLS_PORT}:143 ## IMAP port for STARTTLS connections
+      - ${IMAPS_PORT}:993  # IMAPS port for SSL/TLS connections
+      - ${IMAP_STARTTLS_PORT}:143  # IMAP port for STARTTLS connections
     volumes:
       - ./dovecot.conf:/etc/dovecot/dovecot.conf
       - ${SSL_CERT}:/srv/cert.pem:ro
@@ -29,16 +29,16 @@ services:
     depends_on:
       - dovecot
     ports:
-      - ${SNS_ENDPOINT_PORT}:443 ## HTTPS port for SNS message delivery
+      - ${SNS_ENDPOINT_PORT}:443  # HTTPS port for SNS message delivery
     volumes:
       - ${SSL_CERT}:/srv/cert.pem:ro
       - ${SSL_KEY}:/srv/key.pem:ro
     environment:
       - TZ
-      - LMTP_ADDRESS=dovecot:24 ## Format: '<host>:<port>'
+      - LMTP_ADDRESS=dovecot:24  # Format: '<host>:<port>'
       - BASIC_AUTH_CREDENTIALS_FILE=/run/secrets/sns_basic_auth_credentials
       - AWS_CREDENTIALS_FILE=/run/secrets/aws_iam_credentials
-      - POSTFIX_LOOKUP_TABLE=pcre:/run/secrets/postfix_lookup_table ## Format: '<type>:<path>'
+      - POSTFIX_LOOKUP_TABLE=pcre:/run/secrets/postfix_lookup_table  # Format: '<type>:<path>'
       - AWS_REGION
       - DEAD_LETTER_QUEUE_URL
       - LOG_LEVEL
@@ -59,16 +59,16 @@ services:
     depends_on:
       - dovecot
     ports:
-      - ${SMTP_STARTTLS_PORT}:587 ## SMTP submission port for STARTTLS connections
+      - ${SMTP_STARTTLS_PORT}:587  # SMTP submission port for STARTTLS connections
     volumes:
       - ${SSL_CERT}:/srv/cert.pem:ro
       - ${SSL_KEY}:/srv/key.pem:ro
-      #- ./custom_login_map:/etc/postfix/custom_login_map ## Mount custom login map
+      #- ./custom_login_map:/etc/postfix/custom_login_map  # Mount custom login map
     environment:
       - TZ
-      - SASL_ADDRESS=dovecot:12345 ## Format: '<host>:<port>'
+      - SASL_ADDRESS=dovecot:12345  # Format: '<host>:<port>'
       - AWS_IAM_CREDENTIALS_FILE=/run/secrets/aws_iam_credentials
-      - POSTFIX_LOOKUP_TABLE=pcre:/run/secrets/postfix_lookup_table ## Format: '<type>:<path>'
+      - POSTFIX_LOOKUP_TABLE=pcre:/run/secrets/postfix_lookup_table  # Format: '<type>:<path>'
       - AWS_REGION
     secrets:
       - aws_iam_credentials
@@ -84,10 +84,10 @@ volumes:
 
 secrets:
   dovecot_passwd:
-    file: "${SECRETS_PATH}/dovecot_passwd" ## Contents of each line: '<username>:<password>::'
+    file: "${SECRETS_PATH}/dovecot_passwd"  # Contents of each line: '<username>:<password>::'
   sns_basic_auth_credentials:
     file: "${SECRETS_PATH}/sns_basic_auth_credentials"
   aws_iam_credentials:
-    file: "${SECRETS_PATH}/aws_iam_credentials" ## Contents: '<access_key>:<secret_access_key>'
+    file: "${SECRETS_PATH}/aws_iam_credentials"  # Contents: '<access_key>:<secret_access_key>'
   postfix_lookup_table:
     file: "${SECRETS_PATH}/postfix_lookup_table"

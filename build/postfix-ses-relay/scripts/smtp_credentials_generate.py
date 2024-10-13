@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-## https://docs.aws.amazon.com/ses/latest/dg/smtp-credentials.html#smtp-credentials-convert
+
+# https://docs.aws.amazon.com/ses/latest/dg/smtp-credentials.html#smtp-credentials-convert
 
 import hmac
 import hashlib

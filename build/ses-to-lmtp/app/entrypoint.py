@@ -20,11 +20,11 @@ import botocore.exceptions
 
 
 class SNSEndpointHandler(http.server.BaseHTTPRequestHandler):
-    protocol_version = 'HTTP/1.1' ## Required for SNS HTTPS endpoint
+    protocol_version = 'HTTP/1.1'  # Required for SNS HTTPS endpoint
     timeout = 30
 
     def version_string(self):
-        ## Used as value of "Server" header sent to clients
+        # Used as value of "Server" header sent to clients
         return 'SNS Endpoint'
 
     def __init__(self, *args, basic_auth_credentials, message_handler=None, **kwargs):
@@ -94,9 +94,9 @@ class SNSEndpointHandler(http.server.BaseHTTPRequestHandler):
                         raise ValueError(err)
             except Exception:
                 logging.exception('Processing of SNS notification failed:')
-                ## Typically an exception would happen here due to misconfiguration, so while we failed to process the notification this time, we may be able to later.
-                ## By sending a status of code outside the 2XX-4XX range, we're telling SNS to consider notification delivery a failure.
-                ## This causes the notification to be sent again or placed in the dead letter queue.
+                # Typically an exception would happen here due to misconfiguration, so while we failed to process the notification this time, we may be able to later.
+                # By sending a status of code outside the 2XX-4XX range, we're telling SNS to consider notification delivery a failure.
+                # This causes the notification to be sent again or placed in the dead letter queue.
                 self.send_status(500)
             else:
                 self.send_status(200)
@@ -215,8 +215,8 @@ def queue_processing_thread_worker(queue, mail_processor, stop_event, run_interv
                 break
             try:
                 messages = queue.receive_messages(
-                    WaitTimeSeconds=10, ## Long polling to reduce false empty responses
-                    VisibilityTimeout=3600, ## Don't return the same message more than once per hour
+                    WaitTimeSeconds=10,  # Long polling to reduce false empty responses
+                    VisibilityTimeout=3600,  # Don't return the same message more than once per hour
                     MaxNumberOfMessages=10
                     )
                 if not messages:
@@ -263,19 +263,19 @@ def serve_endpoint(basic_auth_credentials, message_handler=None, port=443, ssl_c
     httpd.serve_forever()
 
 def main():
-    ## Shutdown signal event to notify threads they should exit
+    # Shutdown signal event to notify threads they should exit
     shutdown_event = threading.Event()
 
-    ## Shutdown signal handler function
+    # Shutdown signal handler function
     def shutdown_signal_handler(signal, frame):
         logging.debug('Received shutdown signal')
         shutdown_event.set()
         sys.exit(0)
 
-    ## Trigger shutdown upon receiving SIGTERM
+    # Trigger shutdown upon receiving SIGTERM
     signal.signal(signal.SIGTERM, shutdown_signal_handler)
 
-    ## Configure logging
+    # Configure logging
     log_level_name = get_env('LOG_LEVEL', default='INFO')
     log_level = getattr(logging, log_level_name.upper(), None)
     if not isinstance(log_level, int):
@@ -287,11 +287,11 @@ def main():
         datefmt='%Y-%m-%d %H:%M:%S',
         level=log_level
         )
-    ## Don't output exception tracebacks unless debug logging is enabled
+    # Don't output exception tracebacks unless debug logging is enabled
     if log_level > logging.DEBUG:
         sys.tracebacklimit = 0
 
-    ## Set up S3 mail processor
+    # Set up S3 mail processor
     try:
         session = get_boto3_session(*get_env('AWS_CREDENTIALS').split(':', 1))
         s3_client = session.client('s3')
@@ -305,7 +305,7 @@ def main():
         message_handler = None
         logging.exception('Mail processor configuration failed:')
     else:
-        ## Start dead letter queue processing thread
+        # Start dead letter queue processing thread
         try:
             sqs = session.resource('sqs', region_name=get_env('AWS_REGION'))
             queue = sqs.Queue(get_env('DEAD_LETTER_QUEUE_URL'))
@@ -324,7 +324,7 @@ def main():
             logging.exception('Error starting dead letter queue processing thread:')
             logging.warning('Dead letter queue processing thread is not running; SNS endpoint will function normally, but missed notifications will not be retried.')
 
-    ## Serve SNS HTTPS endpoint
+    # Serve SNS HTTPS endpoint
     try:
         serve_endpoint(
             get_env('BASIC_AUTH_CREDENTIALS'),

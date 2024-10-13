@@ -2,7 +2,7 @@ FROM python:3.12-alpine3.18
 
 LABEL org.opencontainers.image.url=https://github.com/corey-braun/hybrid-cloud-email
 
-## Install required packages
+# Install required packages
 RUN set -eux; \
 	apk add --no-cache \
 		tini \
@@ -12,7 +12,7 @@ RUN set -eux; \
 	pip install --no-cache-dir \
 		boto3
 
-## Add python files
+# Add python files
 WORKDIR /srv/app
 COPY app .
 

@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-## Creates Porkbun DNS records from CloudFormation outputs
-## https://github.com/corey-braun/hybrid-cloud-email
 
-## Requires jq: https://jqlang.github.io/jq/
-## Requires AWS CLI: https://aws.amazon.com/cli/
-## Requires corey-braun/porkbun-api-bash: https://github.com/corey-braun/porkbun-api-bash
+# Creates Porkbun DNS records from CloudFormation outputs
+# https://github.com/corey-braun/hybrid-cloud-email
+
+# Requires jq: https://jqlang.github.io/jq/
+# Requires AWS CLI: https://aws.amazon.com/cli/
+# Requires corey-braun/porkbun-api-bash: https://github.com/corey-braun/porkbun-api-bash
 
 CLOUDFORMATION_STACK='HybridCloudEmail'
 
@@ -13,11 +14,11 @@ log_exit() {
     exit 1
 }
 
-## Parse DNS record string and set the following variables: domain type answer subdomain priority
+# Parse DNS record string and set the following variables: domain type answer subdomain priority
 parse_dns_record() {
     read domain type answer <<< "$1"
 
-    ## Separate subdomain from domain
+    # Separate subdomain from domain
     subdomain="${domain%.*.*}"
     if [ "$subdomain" = "$domain" ]; then
         unset subdomain
@@ -25,7 +26,7 @@ parse_dns_record() {
         domain="${domain#$subdomain.}"
     fi
 
-    ## Separate MX record priority from answer
+    # Separate MX record priority from answer
     if [ "$type" = MX ]; then
         read priority answer <<< "$answer"
     fi
@@ -53,11 +54,11 @@ delete_dns_record() {
     echo
 }
 
-## Get DNS records as an array from CloudFormation outputs
+# Get DNS records as an array from CloudFormation outputs
 mapfile -t DNS_RECORDS < <(aws cloudformation describe-stacks --stack-name "$CLOUDFORMATION_STACK" --query "Stacks[0].Outputs[?contains(OutputKey,'DnsRecord')].OutputValue" | jq -r .[])
 [ "$?" -ne 0 ] && log_exit 'Error getting DNS records from CloudFormation stack outputs'
 
-## Create (or delete) each DNS record
+# Create (or delete) each DNS record
 if [ "$1" = 'delete' ]; then
     for record in "${DNS_RECORDS[@]}"; do
         delete_dns_record "$record"

@@ -2,7 +2,7 @@ FROM alpine:3.18.4
 
 LABEL org.opencontainers.image.url=https://github.com/corey-braun/hybrid-cloud-email
 
-## Install packages and configure postfix
+# Install packages and configure postfix
 RUN set -eux; \
 	apk add --no-cache \
 		bash \
@@ -36,7 +36,7 @@ RUN set -eux; \
 	; \
 	newaliases
 
-## Add scripts
+# Add scripts
 COPY --from=common common.sh /usr/local/bin/
 COPY scripts /usr/local/bin/
 
